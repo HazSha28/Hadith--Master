@@ -1,7 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
-import { Bell, User, MessageSquare, Send } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import logo from "@/assets/logo.png";
 import {
   DropdownMenu,
@@ -17,11 +16,35 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { Notifications } from "./Notifications";
+import { Chat } from "./Chat";
+import { useToast } from "@/hooks/use-toast";
 
 export const Header = () => {
   const location = useLocation();
   const currentPath = location.pathname;
   const [showMessages, setShowMessages] = useState(false);
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+      navigate("/login");
+    }
+  };
 
   return (
     <header className="bg-primary text-primary-foreground shadow-md">
@@ -62,83 +85,31 @@ export const Header = () => {
 
         {/* Right Icons */}
         <div className="flex items-center gap-3">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-primary-foreground/20 relative"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="bg-card">
-              <SheetHeader>
-                <SheetTitle>Notifications</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-4">
-                <div className="p-4 bg-accent/10 rounded-lg border border-border">
-                  <p className="font-semibold text-card-foreground">Welcome to Hadith Master!</p>
-                  <p className="text-sm text-muted-foreground mt-1">Start exploring authentic hadiths today.</p>
-                  <p className="text-xs text-muted-foreground mt-2">2 hours ago</p>
-                </div>
-                <div className="p-4 bg-background rounded-lg border border-border">
-                  <p className="font-semibold text-card-foreground">New Collection Added</p>
-                  <p className="text-sm text-muted-foreground mt-1">Sunan Ibn Majah is now available.</p>
-                  <p className="text-xs text-muted-foreground mt-2">1 day ago</p>
-                </div>
-                <div className="p-4 bg-background rounded-lg border border-border">
-                  <p className="font-semibold text-card-foreground">Search Tips</p>
-                  <p className="text-sm text-muted-foreground mt-1">Try using voice search for faster results!</p>
-                  <p className="text-xs text-muted-foreground mt-2">3 days ago</p>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+          {user && <Notifications />}
 
-          <Sheet open={showMessages} onOpenChange={setShowMessages}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-primary-foreground/20 relative"
-              >
-                <MessageSquare className="h-5 w-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="bg-card flex flex-col">
-              <SheetHeader>
-                <SheetTitle>Messages</SheetTitle>
-              </SheetHeader>
-              <div className="flex-1 overflow-y-auto mt-6 space-y-4">
-                <div className="bg-accent/10 rounded-lg p-3">
-                  <p className="text-sm font-medium text-card-foreground">Admin</p>
-                  <p className="text-sm text-muted-foreground mt-1">Welcome! How can I help you today?</p>
-                  <p className="text-xs text-muted-foreground mt-2">10:30 AM</p>
+          {user && (
+            <Sheet open={showMessages} onOpenChange={setShowMessages}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="bg-card w-full sm:max-w-lg">
+                <SheetHeader>
+                  <SheetTitle>Community Chat</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  <Chat />
                 </div>
-                <div className="bg-primary/10 rounded-lg p-3 ml-6">
-                  <p className="text-sm font-medium text-card-foreground">You</p>
-                  <p className="text-sm text-muted-foreground mt-1">I'm looking for hadiths about prayer.</p>
-                  <p className="text-xs text-muted-foreground mt-2">10:32 AM</p>
-                </div>
-                <div className="bg-accent/10 rounded-lg p-3">
-                  <p className="text-sm font-medium text-card-foreground">Admin</p>
-                  <p className="text-sm text-muted-foreground mt-1">Try searching in Sahih Bukhari Book of Prayer.</p>
-                  <p className="text-xs text-muted-foreground mt-2">10:33 AM</p>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-border">
-                <div className="flex gap-2">
-                  <Input placeholder="Type a message..." className="bg-input border-border" />
-                  <Button size="icon" className="bg-accent hover:bg-accent/90">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </SheetContent>
+            </Sheet>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -151,21 +122,36 @@ export const Header = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-popover">
-              <DropdownMenuItem asChild>
-                <Link to="/login" className="cursor-pointer">
-                  Login
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/signup" className="cursor-pointer">
-                  Create Account
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/about" className="cursor-pointer">
-                  About Us
-                </Link>
-              </DropdownMenuItem>
+              {user ? (
+                <>
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+                    Logout
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/about" className="cursor-pointer">
+                      About Us
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link to="/login" className="cursor-pointer">
+                      Login
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/signup" className="cursor-pointer">
+                      Create Account
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/about" className="cursor-pointer">
+                      About Us
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

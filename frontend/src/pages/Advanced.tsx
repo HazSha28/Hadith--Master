@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,9 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, Upload, Share2 } from "lucide-react";
+import { Share2 } from "lucide-react";
+import { VoiceSearch } from "@/components/VoiceSearch";
+import { FileUpload } from "@/components/FileUpload";
 
 const Advanced = () => {
+  const [searchText, setSearchText] = useState("");
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -32,14 +37,12 @@ const Advanced = () => {
                     <Textarea
                       placeholder="Enter Hadith gist here..."
                       className="bg-input border-border min-h-[120px] resize-none pr-24"
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
                     />
                     <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <Button size="icon" variant="ghost" className="h-8 w-8">
-                        <Mic className="h-5 w-5 text-muted-foreground hover:text-accent" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8">
-                        <Upload className="h-5 w-5 text-muted-foreground hover:text-accent" />
-                      </Button>
+                      <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
+                      <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
                     </div>
                   </div>
 

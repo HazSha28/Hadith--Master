@@ -1,12 +1,9 @@
 import { Header } from "@/components/Header";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Share2 } from "lucide-react";
-import { VoiceSearch } from "@/components/VoiceSearch";
-import { FileUpload } from "@/components/FileUpload";
+import { Button } from "@/components/ui/button";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, BookOpen, Share2 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -16,21 +13,19 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 
-const Beginner = () => {
-  const [searchText, setSearchText] = useState("");
+const SearchResults = () => {
+  const location = useLocation();
   const navigate = useNavigate();
+  const searchQuery = new URLSearchParams(location.search).get("q") || "";
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareContent, setShareContent] = useState({ title: "", url: "" });
 
-  const handleSearch = () => {
-    if (searchText.trim()) {
-      navigate(`/search-results?q=${encodeURIComponent(searchText)}`);
-    }
-  };
-
-  const handleShare = (title: string) => {
-    const url = window.location.origin + `/search-results?q=${encodeURIComponent(title)}`;
-    setShareContent({ title, url });
+  const handleShare = (hadith: any) => {
+    const url = window.location.href;
+    setShareContent({ 
+      title: `${hadith.collection} - ${hadith.hadithNumber}`, 
+      url 
+    });
     setShareDialogOpen(true);
   };
 
@@ -41,14 +36,14 @@ const Beginner = () => {
 
   const shareToSocial = (platform: string) => {
     const { title, url } = shareContent;
-    const text = `Check out ${title} on Hadith Search`;
+    const text = `Check out this Hadith: ${title}`;
     
     const urls = {
       whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`,
       email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '\n' + url)}`,
       telegram: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
-      instagram: `https://www.instagram.com/` // Instagram doesn't support direct sharing
+      instagram: `https://www.instagram.com/`
     };
     
     if (platform === 'instagram') {
@@ -59,131 +54,146 @@ const Beginner = () => {
     }
   };
 
+  // Mock results - in a real app, this would fetch from your database
+  const results = [
+    {
+      id: 1,
+      collection: "Sahih Bukhari",
+      hadithNumber: "5063",
+      arabicText: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
+      translation: "Actions are according to intentions, and everyone will get what was intended.",
+      narrator: "Umar ibn Al-Khattab",
+      relevance: 95,
+    },
+    {
+      id: 2,
+      collection: "Sahih Muslim",
+      hadithNumber: "1599",
+      arabicText: "مَنْ غَشَّنَا فَلَيْسَ مِنَّا",
+      translation: "He who cheats is not one of us.",
+      narrator: "Abu Hurairah",
+      relevance: 88,
+    },
+    {
+      id: 3,
+      collection: "Sunan Abu Dawud",
+      hadithNumber: "4031",
+      arabicText: "الْمُسْلِمُ أَخُو الْمُسْلِمِ",
+      translation: "A Muslim is the brother of a Muslim. He neither oppresses him nor humiliates him nor looks down upon him.",
+      narrator: "Abdullah ibn Umar",
+      relevance: 82,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-12">
+      <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold text-foreground text-center mb-4">
-            Beginner Hadith Search
-          </h1>
-          <p className="text-muted-foreground text-center mb-8 text-lg">
-            Simple search to find authentic hadiths easily
-          </p>
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="mb-6"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Search
+          </Button>
 
-          <Card className="bg-card shadow-lg">
-            <CardContent className="p-8">
-              <div className="space-y-6">
-                <div>
-                  <label className="text-sm font-medium text-card-foreground mb-2 block">
-                    Search for Hadith
-                  </label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Enter keywords or topic..."
-                      className="bg-input border-border pr-24"
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                      <VoiceSearch onTranscript={(text) => setSearchText(text)} />
-                      <FileUpload onExtractedText={(text) => setSearchText(text)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-card-foreground">Popular Topics</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Prayer')}>Prayer</Button>
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Charity')}>Charity</Button>
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Fasting')}>Fasting</Button>
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Hajj')}>Hajj</Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-card-foreground">Collections</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Sahih Bukhari')}>Sahih Bukhari</Button>
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Sahih Muslim')}>Sahih Muslim</Button>
-                      <Button variant="secondary" size="sm" onClick={() => navigate('/search-results?q=Abu Dawud')}>Abu Dawud</Button>
-                    </div>
-                  </div>
-                </div>
-
-                <Button 
-                  className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-                  onClick={handleSearch}
-                >
-                  Search Hadiths
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="mt-8 text-center text-muted-foreground">
-            <p className="text-sm">
-              Need more search options? Try <a href="/advanced" className="text-accent hover:underline">Advanced Mode</a>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Search Results
+            </h1>
+            <p className="text-muted-foreground">
+              Found {results.length} hadiths for "{searchQuery}"
             </p>
           </div>
 
-          {/* Hadith Books Section */}
-          <div className="mt-16">
-            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">Hadith Collections</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                { name: "Sahih Bukhari", desc: "The most authentic collection", hadiths: "7,563 hadiths" },
-                { name: "Sahih Muslim", desc: "Second most authentic", hadiths: "7,190 hadiths" },
-                { name: "Sunan Abu Dawud", desc: "Legal traditions", hadiths: "5,274 hadiths" },
-                { name: "Jami' at-Tirmidhi", desc: "Comprehensive collection", hadiths: "3,956 hadiths" },
-                { name: "Sunan an-Nasa'i", desc: "Rigorous authentication", hadiths: "5,761 hadiths" },
-                { name: "Sunan Ibn Majah", desc: "Sixth canonical book", hadiths: "4,341 hadiths" },
-              ].map((book) => (
-                <Card key={book.name} className="bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
-                  <CardContent className="p-6 flex flex-col h-full">
-                    <h3 
-                      className="text-xl font-semibold text-card-foreground mb-2 cursor-pointer hover:text-accent"
-                      onClick={() => navigate(`/search-results?q=${encodeURIComponent(book.name)}`)}
-                    >
-                      {book.name}
-                    </h3>
-                    <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
-                    <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
-                    <div className="flex gap-2 mt-auto">
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => navigate(`/search-results?q=${encodeURIComponent(book.name)}`)}
-                      >
-                        Explore
-                      </Button>
+          <div className="space-y-6">
+            {results.map((result) => (
+              <Card key={result.id} className="bg-card hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <BookOpen className="h-5 w-5 text-accent" />
+                      <div>
+                        <h3 
+                          className="font-semibold text-card-foreground cursor-pointer hover:text-accent"
+                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.collection)}`)}
+                        >
+                          {result.collection} - #{result.hadithNumber}
+                        </h3>
+                        <p 
+                          className="text-sm text-muted-foreground cursor-pointer hover:text-accent"
+                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.narrator)}`)}
+                        >
+                          Narrated by {result.narrator}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
+                        {result.relevance}% match
+                      </span>
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleShare(book.name)}
+                        onClick={() => handleShare(result)}
                       >
                         <Share2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <p className="text-right text-xl font-arabic text-card-foreground mb-2" dir="rtl">
+                        {result.arabicText}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-card-foreground leading-relaxed">
+                        {result.translation}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-border flex gap-2">
+                    <Button variant="secondary" size="sm">
+                      View Details
+                    </Button>
+                    <Button variant="secondary" size="sm">
+                      Save to Collection
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
+
+          {results.length === 0 && (
+            <Card className="bg-card">
+              <CardContent className="p-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-card-foreground mb-2">
+                  No Results Found
+                </h3>
+                <p className="text-muted-foreground">
+                  Try different keywords or browse our collections
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
 
       <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Share {shareContent.title}</DialogTitle>
+            <DialogTitle>Share Hadith</DialogTitle>
             <DialogDescription>
-              Choose how you'd like to share this content
+              Choose how you'd like to share this Hadith
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -252,4 +262,4 @@ const Beginner = () => {
   );
 };
 
-export default Beginner;
+export default SearchResults;

@@ -11,11 +11,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Share2 } from "lucide-react";
-import { VoiceSearch } from "@/components/VoiceSearch";
-import { FileUpload } from "@/components/FileUpload";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { ShareDialog } from "@/components/ShareDialog";
 
 const Advanced = () => {
   const [searchText, setSearchText] = useState("");
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const handleExplore = (bookName: string) => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to explore books",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+    navigate(`/search-results?q=${encodeURIComponent(bookName)}`);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,14 +54,10 @@ const Advanced = () => {
                   <div className="relative">
                     <Textarea
                       placeholder="Enter Hadith gist here..."
-                      className="bg-input border-border min-h-[120px] resize-none pr-24"
+                      className="bg-input border-border min-h-[120px] resize-none"
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
                     />
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                      <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
-                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -130,12 +144,34 @@ const Advanced = () => {
                       <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
                       <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
                       <div className="flex gap-2 mt-auto">
-                        <Button variant="secondary" size="sm" className="flex-1">
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => handleExplore(book.name)}
+                        >
                           Explore
                         </Button>
-                        <Button variant="ghost" size="sm">
-                          <Share2 className="h-4 w-4" />
-                        </Button>
+                        {user ? (
+                          <ShareDialog 
+                            bookName={book.name} 
+                            bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
+                          />
+                        ) : (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              toast({
+                                title: "Login Required",
+                                description: "Please login to share books",
+                                variant: "destructive",
+                              });
+                            }}
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

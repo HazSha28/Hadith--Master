@@ -11,7 +11,7 @@ async function addTestHadith() {
     });
     console.log("✅ Test Hadith added successfully!");
   } catch (error) {
-    console.error("❌ Error adding Hadith:", error);
+    console.error(" Error adding Hadith:", error);
   }
 }
 

@@ -9,7 +9,7 @@ async function addTestHadith() {
       source: "Bukhari & Muslim",
       addedOn: new Date()
     });
-    console.log("✅ Test Hadith added successfully!");
+    console.log(" Test Hadith added successfully!");
   } catch (error) {
     console.error(" Error adding Hadith:", error);
   }

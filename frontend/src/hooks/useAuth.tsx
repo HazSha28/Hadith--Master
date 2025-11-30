@@ -1,90 +1,84 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useEffect, useState } from "react";
+import { auth, db } from "@/firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  updateProfile,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
-interface User {
-  email: string;
-  fullName: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
-  signOut: () => Promise<{ error: any }>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+export function useAuth() {
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem("user")) || null
+  );
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Fetch user data from Firestore if exists
+        const docRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        const userData = docSnap.exists()
+          ? { ...currentUser, ...docSnap.data() }
+          : currentUser;
 
-  const signIn = async (email: string, password: string) => {
-    try {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const foundUser = users.find((u: any) => u.email === email && u.password === password);
-      
-      if (foundUser) {
-        const userData = { email: foundUser.email, fullName: foundUser.fullName };
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        return { error: null };
+      } else {
+        setUser(null);
+        localStorage.removeItem("user");
       }
-      
-      return { error: { message: "Invalid email or password" } };
-    } catch (error) {
-      return { error: { message: "An error occurred during login" } };
-    }
-  };
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email, password, fullName) => {
     try {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      
-      if (users.find((u: any) => u.email === email)) {
-        return { error: { message: "Email already exists" } };
-      }
-      
-      const newUser = { email, password, fullName };
-      users.push(newUser);
-      localStorage.setItem("users", JSON.stringify(users));
-      
-      const userData = { email, fullName };
-      setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
-      
-      return { error: null };
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      // Set display name in Firebase Auth
+      await updateProfile(user, { displayName: fullName });
+
+      // Save user data to Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        fullName,
+        email,
+        createdAt: new Date().toISOString(),
+      });
+
+      return { user, error: null };
     } catch (error) {
-      return { error: { message: "An error occurred during signup" } };
+      return { user: null, error };
     }
   };
 
-  const signOut = async () => {
+  const signIn = async (email, password) => {
     try {
-      setUser(null);
-      localStorage.removeItem("user");
-      return { error: null };
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      return { user: userCredential.user, error: null };
     } catch (error) {
-      return { error: { message: "An error occurred during logout" } };
+      return { user: null, error };
     }
   };
 
-  return (
-    <AuthContext.Provider value={{ user, signIn, signUp, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+    localStorage.removeItem("user");
+  };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+  return { user, signUp, signIn, logout, loading };
+}

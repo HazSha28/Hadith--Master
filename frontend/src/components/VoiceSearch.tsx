@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface VoiceSearchProps {
@@ -65,19 +65,27 @@ export const VoiceSearch = ({ onTranscript }: VoiceSearchProps) => {
       reader.onloadend = async () => {
         const base64Audio = (reader.result as string).split(',')[1];
 
-        const { data, error } = await supabase.functions.invoke('voice-to-text', {
-          body: { audio: base64Audio }
+        // TODO: Replace with your backend service
+        // const { data, error } = await supabase.functions.invoke('voice-to-text', {
+        //   body: { audio: base64Audio }
+        // });
+
+        // if (error) throw error;
+
+        // if (data?.text) {
+        //   onTranscript(data.text);
+        //   toast({
+        //     title: "Transcription complete",
+        //     description: "Text has been added to search",
+        //   });
+        // }
+
+        console.log('Voice data ready:', base64Audio.substring(0, 50) + '...');
+        toast({
+          title: "Voice feature disabled",
+          description: "Backend integration needed",
+          variant: "destructive",
         });
-
-        if (error) throw error;
-
-        if (data?.text) {
-          onTranscript(data.text);
-          toast({
-            title: "Transcription complete",
-            description: "Text has been added to search",
-          });
-        }
       };
     } catch (error) {
       console.error('Error processing audio:', error);

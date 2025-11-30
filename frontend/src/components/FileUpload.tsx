@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface FileUploadProps {
@@ -41,22 +41,22 @@ export const FileUpload = ({ onExtractedText }: FileUploadProps) => {
       reader.onloadend = async () => {
         const base64File = reader.result as string;
 
-        const { data, error } = await supabase.functions.invoke('process-upload', {
-          body: { 
-            file: base64File,
-            fileType: file.type 
-          }
-        });
+        // const { data, error } = await supabase.functions.invoke('process-upload', {
+        //   body: { 
+        //     file: base64File,
+        //     fileType: file.type 
+        //   }
+        // });
 
-        if (error) throw error;
+        // if (error) throw error;
 
-        if (data?.text) {
-          onExtractedText(data.text);
-          toast({
-            title: "Text extracted",
-            description: "Content has been added to search",
-          });
-        }
+        // if (data?.text) {
+        //   onExtractedText(data.text);
+        //   toast({
+        //     title: "Text extracted",
+        //     description: "Content has been added to search",
+        //   });
+        // }
       };
     } catch (error) {
       console.error('Error processing file:', error);

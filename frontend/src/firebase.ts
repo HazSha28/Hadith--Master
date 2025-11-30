@@ -1,4 +1,4 @@
-// src/firebaseConfig.ts
+// src/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getAuth, connectAuthEmulator } from "firebase/auth";

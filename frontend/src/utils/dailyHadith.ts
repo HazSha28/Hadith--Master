@@ -17,7 +17,7 @@ const DAILY_HADITH_KEY = 'daily_hadith';
 const DAILY_HADITH_DATE_KEY = 'daily_hadith_date';
 
 export const getDailyHadith = async (): Promise<Hadith> => {
-  const today = new Date().toDateString(); // e.g., "Mon Dec 30 2024"
+  const today = new Date().toDateString();
   
   // Check if we already have a hadith for today
   const storedHadith = localStorage.getItem(DAILY_HADITH_KEY);

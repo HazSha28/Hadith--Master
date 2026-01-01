@@ -78,21 +78,83 @@ export async function fetchRandomHadith(): Promise<Hadith> {
     };
   } catch (error) {
     console.error('Error fetching random hadith:', error);
-    // Fallback hadith
-    return {
-      id: 1,
-      arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
-      english: {
-        narrator: 'Umar ibn Al-Khattab',
-        text: 'Verily actions are by intentions, and for every person is what he intended.'
+    
+    // Fallback to sample hadiths when API fails
+    const sampleHadiths: Hadith[] = [
+      {
+        id: 1,
+        arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
+        english: {
+          narrator: 'Umar ibn Al-Khattab',
+          text: 'Verily actions are by intentions, and for every person is what he intended.'
+        },
+        reference: {
+          book: 1,
+          hadith: 1
+        },
+        bookName: 'Sahih al-Bukhari',
+        chapter: 'The Book of Revelation'
       },
-      reference: {
-        book: 1,
-        hadith: 1
+      {
+        id: 2,
+        arabic: 'الْإِيمَانُ بِضْعٌ وَسَبْعُونَ شُعْبَةً',
+        english: {
+          narrator: 'Abu Hurairah',
+          text: 'Faith has seventy-something branches, the highest of which is saying "La ilaha illallah" and the lowest of which is removing something harmful from the road.'
+        },
+        reference: {
+          book: 1,
+          hadith: 35
+        },
+        bookName: 'Sahih Muslim',
+        chapter: 'The Book of Faith'
       },
-      bookName: 'Sahih al-Bukhari',
-      chapter: 'The Book of Revelation'
-    };
+      {
+        id: 3,
+        arabic: 'مَنْ حَسُنَ إِسْلَامُ الْمَرْءِ كَانَ تَرْكُهُ مَا لَا يَعْنِيهِ',
+        english: {
+          narrator: 'Abu Hurairah',
+          text: 'Part of the perfection of a person\'s Islam is their leaving aside that which does not concern them.'
+        },
+        reference: {
+          book: 37,
+          hadith: 2786
+        },
+        bookName: 'Jami\' at-Tirmidhi',
+        chapter: 'The Book of Manners'
+      },
+      {
+        id: 4,
+        arabic: 'الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ',
+        english: {
+          narrator: 'Abu Hurairah',
+          text: 'The Muslim is the one from whose tongue and hand the Muslims are safe.'
+        },
+        reference: {
+          book: 2,
+          hadith: 9
+        },
+        bookName: 'Sahih al-Bukhari',
+        chapter: 'The Book of Faith'
+      },
+      {
+        id: 5,
+        arabic: 'إِذَا قُمْتُمْ إِلَى الصَّلَاةِ فَاغْسِلُوا وُجُوهَكُمْ',
+        english: {
+          narrator: 'Abu Hurairah',
+          text: 'When you stand for prayer, wash your faces and your forearms up to the elbows, wipe your heads, and wash your feet up to the ankles.'
+        },
+        reference: {
+          book: 4,
+          hadith: 6
+        },
+        bookName: 'Sahih al-Bukhari',
+        chapter: 'The Book of Ablution'
+      }
+    ];
+    
+    // Return a random sample hadith
+    return sampleHadiths[Math.floor(Math.random() * sampleHadiths.length)];
   }
 }
 

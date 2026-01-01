@@ -1,7 +1,9 @@
 // src/firebase.ts
-import { initializeApp } from "firebase/app";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC53sa8nPeQA68X5FmgSTvLJmrc_AI_LSo",
@@ -12,14 +14,28 @@ const firebaseConfig = {
   appId: "1:956247344001:web:3f877101e43196426e5e80",
   measurementId: "G-N10ZYSJ709"
 };
+
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Firestore
+// Initialize services
 export const db = getFirestore(app);
-// Auth
 export const auth = getAuth(app);
+export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
-// Connect to local emulators
-connectAuthEmulator(auth, "http://localhost:9099");
-connectFirestoreEmulator(db, "localhost", 8080);
+// Auth providers
+export const googleProvider = new GoogleAuthProvider();
+
+// For development with emulators (uncomment when needed)
+/*
+import { connectAuthEmulator } from 'firebase/auth';
+import { connectFirestoreEmulator } from 'firebase/firestore';
+import { connectFunctionsEmulator } from 'firebase/functions';
+
+if (process.env.NODE_ENV === 'development') {
+  connectAuthEmulator(auth, "http://localhost:9099");
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+}
+*/

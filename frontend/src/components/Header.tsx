@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { User, MessageSquare } from "lucide-react";
+import { User, MessageSquare, Moon, Sun, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
 import {
@@ -18,31 +18,33 @@ import {
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Notifications } from "./Notifications";
-import { Chat } from "./Chat";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/contexts/ThemeContext";
+import ChatHub from "./chat/ChatHub";
 
 export const Header = () => {
   const location = useLocation();
   const currentPath = location.pathname;
   const [showMessages, setShowMessages] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await logout();
       toast({
         title: "Success",
         description: "Logged out successfully",
       });
       navigate("/login");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      });
     }
   };
 
@@ -85,8 +87,19 @@ export const Header = () => {
 
         {/* Right Icons */}
         <div className="flex items-center gap-3">
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="text-primary-foreground hover:bg-primary-foreground/20"
+          >
+            {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          </Button>
+
           {user && <Notifications />}
 
+          {/* Community Chat */}
           {user && (
             <Sheet open={showMessages} onOpenChange={setShowMessages}>
               <SheetTrigger asChild>
@@ -94,16 +107,26 @@ export const Header = () => {
                   variant="ghost"
                   size="icon"
                   className="text-primary-foreground hover:bg-primary-foreground/20"
+                  title="Community Center"
                 >
                   <MessageSquare className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent className="bg-card w-full sm:max-w-lg">
-                <SheetHeader>
-                  <SheetTitle>Community Chat</SheetTitle>
+              <SheetContent className="bg-card w-full sm:max-w-4xl h-[85vh] p-0">
+                <SheetHeader className="p-4 border-b bg-muted/30">
+                  <SheetTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    Chat Hub
+                    <div className="ml-auto flex items-center gap-2 text-sm">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        All Conversations
+                      </span>
+                    </div>
+                  </SheetTitle>
                 </SheetHeader>
-                <div className="mt-4">
-                  <Chat />
+                <div className="h-full overflow-hidden">
+                  <ChatHub />
                 </div>
               </SheetContent>
             </Sheet>

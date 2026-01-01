@@ -2,8 +2,8 @@ import { Header } from "@/components/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpen, Share2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, BookOpen, Loader2, Share2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,18 +12,89 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { HadithSearchBar } from "@/components/HadithSearchBar";
+import { searchHadiths } from "@/lib/hadithService";
+
+type Hadith = {
+  id: number;
+  arabic: string;
+  english: {
+    narrator: string;
+    text: string;
+  };
+  reference: {
+    book: number;
+    hadith: number;
+  };
+  bookName?: string;
+  chapter?: string;
+};
 
 const SearchResults = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const searchQuery = new URLSearchParams(location.search).get("q") || "";
+  const bookParam = new URLSearchParams(location.search).get("book") || undefined;
+  const [searchText, setSearchText] = useState(searchQuery);
+  const [results, setResults] = useState<Hadith[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareContent, setShareContent] = useState({ title: "", url: "" });
 
-  const handleShare = (hadith: any) => {
+  useEffect(() => {
+    setSearchText(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setResults([]);
+      setLoadError(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const apiResults = await searchHadiths(q, bookParam);
+        if (!cancelled) {
+          setResults(apiResults);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError("Failed to load results. Please try again.");
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery, bookParam]);
+
+  const handleSearch = () => {
+    const q = searchText.trim();
+    if (!q) return;
+    const params = new URLSearchParams();
+    params.set("q", q);
+    if (bookParam) {
+      params.set("book", bookParam);
+    }
+    navigate(`/search-results?${params.toString()}`);
+  };
+
+  const handleShare = (hadith: Hadith) => {
     const url = window.location.href;
     setShareContent({ 
-      title: `${hadith.collection} - ${hadith.hadithNumber}`, 
+      title: `${hadith.bookName || "Hadith"} - #${hadith.reference?.hadith ?? ""}`,
       url 
     });
     setShareDialogOpen(true);
@@ -54,37 +125,6 @@ const SearchResults = () => {
     }
   };
 
-  // Mock results - in a real app, this would fetch from your database
-  const results = [
-    {
-      id: 1,
-      collection: "Sahih Bukhari",
-      hadithNumber: "5063",
-      arabicText: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
-      translation: "Actions are according to intentions, and everyone will get what was intended.",
-      narrator: "Umar ibn Al-Khattab",
-      relevance: 95,
-    },
-    {
-      id: 2,
-      collection: "Sahih Muslim",
-      hadithNumber: "1599",
-      arabicText: "مَنْ غَشَّنَا فَلَيْسَ مِنَّا",
-      translation: "He who cheats is not one of us.",
-      narrator: "Abu Hurairah",
-      relevance: 88,
-    },
-    {
-      id: 3,
-      collection: "Sunan Abu Dawud",
-      hadithNumber: "4031",
-      arabicText: "الْمُسْلِمُ أَخُو الْمُسْلِمِ",
-      translation: "A Muslim is the brother of a Muslim. He neither oppresses him nor humiliates him nor looks down upon him.",
-      narrator: "Abdullah ibn Umar",
-      relevance: 82,
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -109,6 +149,30 @@ const SearchResults = () => {
             </p>
           </div>
 
+          <div className="mb-6">
+            <HadithSearchBar
+              value={searchText}
+              onValueChange={setSearchText}
+              onSearch={handleSearch}
+              placeholder="Refine your search..."
+              disabled={loading}
+            />
+          </div>
+
+          {loading && (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
+
+          {!loading && loadError && (
+            <Card className="bg-card">
+              <CardContent className="p-6 text-center text-destructive">
+                {loadError}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="space-y-6">
             {results.map((result) => (
               <Card key={result.id} className="bg-card hover:shadow-lg transition-shadow">
@@ -119,22 +183,19 @@ const SearchResults = () => {
                       <div>
                         <h3 
                           className="font-semibold text-card-foreground cursor-pointer hover:text-accent"
-                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.collection)}`)}
+                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.bookName || "Hadith")}`)}
                         >
-                          {result.collection} - #{result.hadithNumber}
+                          {(result.bookName || "Hadith")} - #{result.reference.hadith}
                         </h3>
                         <p 
                           className="text-sm text-muted-foreground cursor-pointer hover:text-accent"
-                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.narrator)}`)}
+                          onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.english.narrator)}`)}
                         >
-                          Narrated by {result.narrator}
+                          Narrated by {result.english.narrator}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
-                        {result.relevance}% match
-                      </span>
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -148,13 +209,13 @@ const SearchResults = () => {
                   <div className="space-y-4">
                     <div className="bg-muted/50 p-4 rounded-lg">
                       <p className="text-right text-xl font-arabic text-card-foreground mb-2" dir="rtl">
-                        {result.arabicText}
+                        {result.arabic}
                       </p>
                     </div>
                     
                     <div>
                       <p className="text-card-foreground leading-relaxed">
-                        {result.translation}
+                        {result.english.text}
                       </p>
                     </div>
                   </div>

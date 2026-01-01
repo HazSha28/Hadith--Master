@@ -20,28 +20,44 @@ import { ShareDialog } from "@/components/ShareDialog";
 
 const Index = () => {
   const [searchText, setSearchText] = useState("");
+  const [selectedBook, setSelectedBook] = useState("");
+  const [selectedAuthor, setSelectedAuthor] = useState("");
+  const [selectedNarrator, setSelectedNarrator] = useState("");
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const handleExplore = (bookName: string) => {
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please login to explore books",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
     navigate(`/search-results?q=${encodeURIComponent(bookName)}`);
   };
 
+  const handleSearch = () => {
+    const query = searchText || selectedBook || selectedAuthor || selectedNarrator;
+    if (query) {
+      navigate(`/search-results?q=${encodeURIComponent(query)}`);
+    }
+  };
+
+  const handleBookSelect = (value: string) => {
+    setSelectedBook(value);
+    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+  };
+
+  const handleAuthorSelect = (value: string) => {
+    setSelectedAuthor(value);
+    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+  };
+
+  const handleNarratorSelect = (value: string) => {
+    setSelectedNarrator(value);
+    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <>
       <Header />
-      
-      <main className="container mx-auto px-4 py-12">
+      <h1 style={{color: 'red', fontSize: '48px'}}>TEST - APP IS RENDERING</h1>
+      <main className="min-h-screen bg-background">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground text-center mb-4">
             Advanced Hadith Search
@@ -67,7 +83,7 @@ const Index = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <Select>
+                    <Select value={selectedBook} onValueChange={handleBookSelect}>
                       <SelectTrigger className="bg-input border-border">
                         <SelectValue placeholder="Book Name" />
                       </SelectTrigger>
@@ -81,7 +97,7 @@ const Index = () => {
                       </SelectContent>
                     </Select>
 
-                    <Select>
+                    <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
                       <SelectTrigger className="bg-input border-border">
                         <SelectValue placeholder="Author's Name" />
                       </SelectTrigger>
@@ -95,7 +111,7 @@ const Index = () => {
                       </SelectContent>
                     </Select>
 
-                    <Select>
+                    <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
                       <SelectTrigger className="bg-input border-border">
                         <SelectValue placeholder="Narrator's Names" />
                       </SelectTrigger>
@@ -125,7 +141,7 @@ const Index = () => {
                     </Select>
                   </div>
 
-                <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Button onClick={handleSearch} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
                   Search
                 </Button>
               </div>
@@ -158,26 +174,10 @@ const Index = () => {
                       >
                         Explore
                       </Button>
-                      {user ? (
-                        <ShareDialog 
-                          bookName={book.name} 
-                          bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
-                        />
-                      ) : (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => {
-                            toast({
-                              title: "Login Required",
-                              description: "Please login to share books",
-                              variant: "destructive",
-                            });
-                          }}
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <ShareDialog 
+                        bookName={book.name} 
+                        bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -186,7 +186,7 @@ const Index = () => {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 };
 

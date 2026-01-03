@@ -6,79 +6,109 @@ import {
   onAuthStateChanged,
   signOut,
   updateProfile,
+  User
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp
+} from "firebase/firestore";
+
+type UserProfile = {
+  uid: string;
+  email: string | null;
+  fullName: string;
+  role: string;
+  premium: boolean;
+  credits: number;
+  createdAt: any;
+};
 
 export function useAuth() {
-  const [user, setUser] = useState(
-    JSON.parse(localStorage.getItem("user")) || null
-  );
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        // Fetch user data from Firestore if exists
-        const docRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        const userData = docSnap.exists()
-          ? { ...currentUser, ...docSnap.data() }
-          : currentUser;
+  /* ================= AUTH LISTENER ================= */
 
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-      } else {
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
         setUser(null);
-        localStorage.removeItem("user");
+        setProfile(null);
+        setLoading(false);
+        return;
       }
+
+      setUser(currentUser);
+
+      const ref = doc(db, "users", currentUser.uid);
+      const snap = await getDoc(ref);
+
+      // 🔥 Create Firestore user if missing
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          fullName: currentUser.displayName || "",
+          role: "user",
+          premium: false,
+          credits: 5,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      const latest = await getDoc(ref);
+      setProfile(latest.data() as UserProfile);
+
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => unsub();
   }, []);
 
-  const signUp = async (email, password, fullName) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const user = userCredential.user;
+  /* ================= SIGN UP ================= */
 
-      // Set display name in Firebase Auth
-      await updateProfile(user, { displayName: fullName });
+  const signUp = async (email: string, password: string, fullName: string) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-      // Save user data to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        fullName,
-        email,
-        createdAt: new Date().toISOString(),
-      });
+    await updateProfile(cred.user, { displayName: fullName });
 
-      return { user, error: null };
-    } catch (error) {
-      return { user: null, error };
-    }
+    await setDoc(doc(db, "users", cred.user.uid), {
+      uid: cred.user.uid,
+      email,
+      fullName,
+      role: "user",
+      premium: false,
+      credits: 5,
+      createdAt: serverTimestamp()
+    });
+
+    return cred.user;
   };
 
-  const signIn = async (email, password) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      return { user: userCredential.user, error: null };
-    } catch (error) {
-      return { user: null, error };
-    }
+  /* ================= SIGN IN ================= */
+
+  const signIn = async (email: string, password: string) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    return cred.user;
   };
+
+  /* ================= LOGOUT ================= */
 
   const logout = async () => {
     await signOut(auth);
     setUser(null);
-    localStorage.removeItem("user");
+    setProfile(null);
   };
 
-  return { user, signUp, signIn, logout, loading };
+  return {
+    user,        // Firebase Auth user
+    profile,    // Firestore user data
+    signUp,
+    signIn,
+    logout,
+    loading
+  };
 }

@@ -153,6 +153,11 @@ export const Header = () => {
                       About Us
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/help" className="cursor-pointer">
+                      Help
+                    </Link>
+                  </DropdownMenuItem>
                 </>
               ) : (
                 <>
@@ -169,6 +174,11 @@ export const Header = () => {
                   <DropdownMenuItem asChild>
                     <Link to="/about" className="cursor-pointer">
                       About Us
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/help" className="cursor-pointer">
+                      Help
                     </Link>
                   </DropdownMenuItem>
                 </>

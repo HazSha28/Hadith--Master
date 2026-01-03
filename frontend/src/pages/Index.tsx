@@ -1,22 +1,15 @@
 import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Share2 } from "lucide-react";
+import { Search, BookOpen, Mic, Bookmark, Share2 } from "lucide-react";
 import { VoiceSearch } from "@/components/VoiceSearch";
 import { FileUpload } from "@/components/FileUpload";
+import { ShareDialog } from "@/components/ShareDialog";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { ShareDialog } from "@/components/ShareDialog";
 
 const Index = () => {
   const [searchText, setSearchText] = useState("");
@@ -26,10 +19,6 @@ const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-
-  const handleExplore = (bookName: string) => {
-    navigate(`/search-results?q=${encodeURIComponent(bookName)}`);
-  };
 
   const handleSearch = () => {
     const query = searchText || selectedBook || selectedAuthor || selectedNarrator;
@@ -56,132 +45,155 @@ const Index = () => {
   return (
     <>
       <Header />
-      <h1 style={{color: 'red', fontSize: '48px'}}>TEST - APP IS RENDERING</h1>
-      <main className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold text-foreground text-center mb-4">
-            Advanced Hadith Search
-          </h1>
-          <p className="text-muted-foreground text-center mb-8 text-lg">
-            Please type in the gist of the hadith or select any of the below criteria to ensure accurate search results.
-          </p>
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950">
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <h1 className="text-4xl font-bold text-foreground mb-4">
+                Discover Authentic Hadith Literature
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Search through thousands of authentic hadiths from the six canonical books
+              </p>
+            </div>
 
-          <Card className="bg-card shadow-lg">
-            <CardContent className="p-8">
-              <div className="space-y-6">
-                  <div className="relative">
-                    <Textarea
-                      placeholder="Enter Hadith gist here..."
-                      className="bg-input border-border min-h-[120px] resize-none pr-24"
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                    />
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                      <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Select value={selectedBook} onValueChange={handleBookSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Book Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="book1" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                        <SelectItem value="book2" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                        <SelectItem value="book3" className="text-[rgb(178,92,27)]">sunan an-Nasa'i</SelectItem>
-                        <SelectItem value="book4" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                        <SelectItem value="book5" className="text-[rgb(178,92,27)]">Jami'at-Tirmidhi</SelectItem>
-                        <SelectItem value="book6" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Author's Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="author1">Imam al-Bukhaari</SelectItem>
-                        <SelectItem value="author2">Imam Muslim</SelectItem>
-                        <SelectItem value="author3">Imam Abu Dawood</SelectItem>
-                        <SelectItem value="author4">Imam al-Tirmidhi</SelectItem>
-                        <SelectItem value="author5">Imam al-Nasaa'i</SelectItem>
-                        <SelectItem value="author6">Imam Ibn Maajah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Narrator's Names" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50 max-h-[300px]">
-                        <SelectItem value="narrator1" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator2" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator3" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator4" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator5" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator6" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator7" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator8">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator9">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator10">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator11">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator12">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator13">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator14">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator15">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator16">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator17">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator18">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator19" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                        <SelectItem value="narrator20" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                        <SelectItem value="narrator21" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                <Button onClick={handleSearch} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                  Search
-                </Button>
+            {/* Enhanced Search Bar */}
+            <div className="max-w-3xl mx-auto mb-16">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-semibold text-foreground mb-2">
+                  Search Hadith Collection
+                </h2>
+                <p className="text-muted-foreground">
+                  Find authentic hadiths from the six canonical books
+                </p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Hadith Books Section */}
-          <div className="mt-16">
-            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">Hadith Collections</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                { name: "Sahih Bukhari", desc: "The most authentic collection", hadiths: "7,563 hadiths" },
-                { name: "Sahih Muslim", desc: "Second most authentic", hadiths: "7,190 hadiths" },
-                { name: "Sunan Abu Dawud", desc: "Legal traditions", hadiths: "5,274 hadiths" },
-                { name: "Jami' at-Tirmidhi", desc: "Comprehensive collection", hadiths: "3,956 hadiths" },
-                { name: "Sunan an-Nasa'i", desc: "Rigorous authentication", hadiths: "5,761 hadiths" },
-                { name: "Sunan Ibn Majah", desc: "Sixth canonical book", hadiths: "4,341 hadiths" },
-              ].map((book) => (
-                <Card key={book.name} className="bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
-                  <CardContent className="p-6 flex flex-col h-full">
-                    <h3 className="text-xl font-semibold text-card-foreground mb-2">{book.name}</h3>
-                    <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
-                    <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
-                    <div className="flex gap-2 mt-auto">
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => handleExplore(book.name)}
-                      >
-                        Explore
-                      </Button>
-                      <ShareDialog 
-                        bookName={book.name} 
-                        bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
+              
+              <Card className="bg-card shadow-lg border-0">
+                <CardContent className="p-8">
+                  <div className="space-y-6">
+                    {/* Main Search Input */}
+                    <div className="relative">
+                      <Textarea
+                        placeholder="Search for hadiths, narrators, books, or topics..."
+                        className="bg-input border-border min-h-[100px] resize-none text-lg p-4 pr-16"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
                       />
+                      <div className="absolute right-4 top-4 flex flex-col gap-2">
+                        <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
+                        <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                    {/* Filter Options */}
+                    <div className="space-y-4">
+                      <p className="text-sm font-medium text-foreground">Filter by:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm text-muted-foreground">Book</label>
+                          <select 
+                            className="w-full p-3 bg-input border-border rounded-md"
+                            value={selectedBook}
+                            onChange={(e) => handleBookSelect(e.target.value)}
+                          >
+                            <option value="">All Books</option>
+                            <option value="Sahih Bukhari">Sahih Bukhari</option>
+                            <option value="Sahih Muslim">Sahih Muslim</option>
+                            <option value="Sunan Abu Dawud">Sunan Abu Dawud</option>
+                            <option value="Jami at-Tirmidhi">Jami at-Tirmidhi</option>
+                            <option value="Sunan an-Nasa'i">Sunan an-Nasa'i</option>
+                            <option value="Sunan Ibn Majah">Sunan Ibn Majah</option>
+                          </select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm text-muted-foreground">Author</label>
+                          <select 
+                            className="w-full p-3 bg-input border-border rounded-md"
+                            value={selectedAuthor}
+                            onChange={(e) => handleAuthorSelect(e.target.value)}
+                          >
+                            <option value="">All Authors</option>
+                            <option value="Imam Bukhari">Imam Bukhari</option>
+                            <option value="Imam Muslim">Imam Muslim</option>
+                            <option value="Abu Dawud">Abu Dawud</option>
+                            <option value="at-Tirmidhi">at-Tirmidhi</option>
+                            <option value="an-Nasa'i">an-Nasa'i</option>
+                            <option value="Ibn Majah">Ibn Majah</option>
+                          </select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm text-muted-foreground">Narrator</label>
+                          <select 
+                            className="w-full p-3 bg-input border-border rounded-md"
+                            value={selectedNarrator}
+                            onChange={(e) => handleNarratorSelect(e.target.value)}
+                          >
+                            <option value="">All Narrators</option>
+                            <option value="Abu Hurairah">Abu Hurairah</option>
+                            <option value="Aisha">Aisha</option>
+                            <option value="Umar ibn al-Khattab">Umar ibn al-Khattab</option>
+                            <option value="Ali ibn Abi Talib">Ali ibn Abi Talib</option>
+                            <option value="Abdullah ibn Abbas">Abdullah ibn Abbas</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Search Button */}
+                    <Button 
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-lg font-medium"
+                      onClick={handleSearch}
+                    >
+                      <Search className="mr-2 h-5 w-5" />
+                      Search Hadiths
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Hadith Collections */}
+            <div>
+              <h2 className="text-3xl font-bold text-foreground mb-8 text-center">Hadith Collections</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[
+                  { name: "Sahih Bukhari", desc: "The most authentic collection", hadiths: "7,563 hadiths" },
+                  { name: "Sahih Muslim", desc: "Second most authentic", hadiths: "7,190 hadiths" },
+                  { name: "Sunan Abu Dawud", desc: "Legal traditions", hadiths: "5,274 hadiths" },
+                  { name: "Jami' at-Tirmidhi", desc: "Comprehensive collection", hadiths: "3,956 hadiths" },
+                  { name: "Sunan an-Nasa'i", desc: "Rigorous authentication", hadiths: "5,761 hadiths" },
+                  { name: "Sunan Ibn Majah", desc: "Sixth canonical book", hadiths: "4,341 hadiths" },
+                ].map((book) => (
+                  <Card key={book.name} className="bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
+                    <CardContent className="p-6 flex flex-col h-full">
+                      <h3 className="text-xl font-semibold text-card-foreground mb-2">{book.name}</h3>
+                      <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
+                      <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
+                      <div className="flex gap-2 mt-auto">
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => navigate(`/collections/${book.name.toLowerCase().replace(/\s+/g, '-')}`)}
+                        >
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          Explore
+                        </Button>
+                        <ShareDialog 
+                          bookName={book.name} 
+                          bookUrl={`${window.location.origin}/collections/${book.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <Button variant="outline" size="sm">
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                        </ShareDialog>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -7,15 +7,20 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import ErrorBoundary from "./components/auth/ErrorBoundary";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import Index from "./pages/Index";
-import Beginner from "./pages/Beginner";
-import Advanced from "./pages/Advanced";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgotPassword from "./pages/ForgotPassword";
-import About from "./pages/About";
-import NotFound from "./pages/NotFound";
-import SearchResults from "./pages/SearchResults";
+import Index from "@/pages/Index";
+import Beginner from "@/pages/Beginner";
+import Advanced from "@/pages/Advanced";
+import SearchResults from "@/pages/SearchResults";
+import BookCollection from "@/pages/BookCollection";
+import CollectionExplore from "@/pages/CollectionExplore";
+import LikedHadiths from "@/pages/LikedHadiths";
+import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
+import About from "@/pages/About";
+import Help from "@/pages/Help";
+import NotFound from "@/pages/NotFound";
+import RealTimeChat from "@/components/RealTimeChat";
+import AdminChatDashboard from "@/components/AdminChatDashboard";
 import FloatingChatButton from "./components/chat/FloatingChatButton";
 
 const queryClient = new QueryClient();
@@ -32,10 +37,35 @@ const App = () => (
               <div className="min-h-screen bg-background">
                 <FloatingChatButton />
                 <Routes>
-                  <Route path="/" element={<Index />} />
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <main><Beginner /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/index" element={<Index />} />
                   <Route path="/beginner" element={
                     <ProtectedRoute>
                       <main><Beginner /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/collections/:bookSlug" element={
+                    <ProtectedRoute>
+                      <main><CollectionExplore /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/liked-hadiths" element={
+                    <ProtectedRoute>
+                      <main><LikedHadiths /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/book/:bookName" element={
+                    <ProtectedRoute>
+                      <main><BookCollection /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/collection/:bookName" element={
+                    <ProtectedRoute>
+                      <main><BookCollection /></main>
                     </ProtectedRoute>
                   } />
                   <Route path="/advanced" element={
@@ -48,13 +78,20 @@ const App = () => (
                       <main><SearchResults /></main>
                     </ProtectedRoute>
                   } />
+                  <Route path="/chat" element={
+                    <ProtectedRoute>
+                      <main><RealTimeChat /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/chat" element={
+                    <ProtectedRoute>
+                      <main><AdminChatDashboard /></main>
+                    </ProtectedRoute>
+                  } />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/about" element={
-                    <main><About /></main>
-                  } />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="/about" element={<About />} />
+                  <Route path="/help" element={<Help />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>

@@ -72,7 +72,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return result;
     } catch (error: any) {
       console.error('Sign up failed:', error.code, error.message);
-      throw error;
+      
+      // Handle specific error cases
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('This email is already registered. Please try logging in instead.');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('Password should be at least 6 characters long.');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Please enter a valid email address.');
+      } else {
+        throw error;
+      }
     }
   };
 

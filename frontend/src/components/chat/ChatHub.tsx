@@ -150,7 +150,7 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
       </div>
 
       {/* Chat Tabs */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
           <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4">
             <TabsList className="grid w-full grid-cols-3 bg-transparent">
@@ -178,7 +178,7 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             <TabsContent value="community" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
               <CommunityCenterChat />
             </TabsContent>

@@ -11,15 +11,36 @@ import { Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ShareDialogProps {
-  bookName: string;
-  bookUrl: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  bookName?: string;
+  bookUrl?: string;
+  hadith?: {
+    id: string;
+    book: string;
+    number: string;
+    arabic: string;
+    english: string;
+    narrator: string;
+    authenticity: string;
+    bookSlug: string;
+  };
+  children?: React.ReactNode;
 }
 
-export const ShareDialog = ({ bookName, bookUrl }: ShareDialogProps) => {
+export const ShareDialog = ({ open, onOpenChange, bookName, bookUrl, hadith, children }: ShareDialogProps) => {
   const { toast } = useToast();
 
-  const shareText = `Check out ${bookName} on Hadith Master`;
-  const encodedUrl = encodeURIComponent(bookUrl);
+  // Determine what we're sharing
+  const isSharingBook = bookName && !hadith;
+  const isSharingHadith = hadith;
+  
+  const shareText = isSharingBook 
+    ? `Check out ${bookName} on Hadith Master`
+    : `Check out this hadith: "${hadith.english.substring(0, 100)}..." from ${hadith.book} (${hadith.number})`;
+  
+  const urlToShare = bookUrl || (hadith ? `${window.location.origin}/collections/${hadith.bookSlug}#${hadith.id}` : window.location.href);
+  const encodedUrl = encodeURIComponent(urlToShare);
   const encodedText = encodeURIComponent(shareText);
 
   const socialPlatforms = [
@@ -116,17 +137,22 @@ export const ShareDialog = ({ bookName, bookUrl }: ShareDialogProps) => {
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Share2 className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children && (
+        <DialogTrigger asChild>
+          {children}
+        </DialogTrigger>
+      )}
       <DialogContent className="bg-card sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Share {bookName}</DialogTitle>
+          <DialogTitle className="text-foreground">
+            Share {isSharingBook ? bookName : 'Hadith'}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Choose a platform to share this hadith collection
+            {isSharingBook 
+              ? 'Choose a platform to share this hadith collection'
+              : 'Choose a platform to share this hadith'
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-3 gap-4 py-4">

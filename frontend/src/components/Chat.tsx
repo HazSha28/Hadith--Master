@@ -26,10 +26,10 @@ export const Chat = () => {
 
   const handleSend = () => {
     if (newMessage.trim() && user) {
-      setMessages([
-        ...messages,
+      setMessages((prev) => [
+        ...prev,
         {
-          id: messages.length + 1,
+          id: prev.length + 1,
           user: user.fullName,
           text: newMessage,
           timestamp: new Date().toLocaleTimeString(),
@@ -40,8 +40,9 @@ export const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-[500px]">
-      <ScrollArea className="flex-1 pr-4">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Messages */}
+      <ScrollArea className="flex-1 min-h-0 pr-4">
         <div className="space-y-4">
           {messages.map((message) => (
             <div key={message.id} className="space-y-1">
@@ -58,7 +59,9 @@ export const Chat = () => {
           ))}
         </div>
       </ScrollArea>
-      <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+
+      {/* Input */}
+      <div className="flex gap-2 mt-2 pt-4 border-t border-border">
         <Input
           placeholder="Type a message..."
           value={newMessage}
@@ -66,7 +69,11 @@ export const Chat = () => {
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           className="bg-input"
         />
-        <Button onClick={handleSend} size="icon" className="bg-accent hover:bg-accent/90">
+        <Button
+          onClick={handleSend}
+          size="icon"
+          className="bg-accent hover:bg-accent/90"
+        >
           <Send className="h-4 w-4" />
         </Button>
       </div>

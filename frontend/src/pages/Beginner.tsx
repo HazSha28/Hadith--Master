@@ -1,7 +1,19 @@
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Share2, Loader2, Search, Bookmark, Trash2, Users, CheckCircle2, BookOpen, Star } from "lucide-react";
+import { 
+  Loader2, 
+  BookOpen, 
+  Mic, 
+  Search, 
+  Bookmark, 
+  CheckCircle2, 
+  RefreshCw,
+  Trash2,
+  Users,
+  Heart,
+  Star
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,7 +104,18 @@ const Beginner = () => {
   };
 
   const handleExplore = (bookName: string) => {
-    navigate(`/search-results?q=${encodeURIComponent(bookName)}`);
+    // Convert book name to URL-friendly slug
+    const bookSlugs: Record<string, string> = {
+      'Sahih Bukhari': 'sahih-bukhari',
+      'Sahih Muslim': 'sahih-muslim',
+      'Sunan Abu Dawud': 'sunan-abu-dawud',
+      'Jami\' at-Tirmidhi': 'jami-at-tirmidhi',
+      'Sunan an-Nasa\'i': 'sunan-an-nasai',
+      'Sunan Ibn Majah': 'sunan-ibn-majah'
+    };
+    
+    const slug = bookSlugs[bookName] || bookName.toLowerCase().replace(/\s+/g, '-');
+    navigate(`/collections/${slug}`);
   };
 
   const handleSearch = () => {
@@ -191,6 +214,14 @@ const Beginner = () => {
               >
                 <Search className="mr-2 h-4 w-4" />
                 Search
+              </Button>
+              <Button
+                variant="ghost"
+                className="rounded-none border-b-2 border-transparent hover:border-primary"
+                onClick={() => navigate('/liked-hadiths')}
+              >
+                <Heart className="mr-2 h-4 w-4" />
+                Liked Hadiths
               </Button>
               <Button
                 variant="ghost"
@@ -591,7 +622,7 @@ const Beginner = () => {
                   <CardContent className="p-6 flex flex-col h-full">
                     <h3 
                       className="text-xl font-semibold text-card-foreground mb-2 cursor-pointer hover:text-accent"
-                      onClick={() => navigate(`/search-results?q=${encodeURIComponent(book.name)}`)}
+                      onClick={() => handleExplore(book.name)}
                     >
                       {book.name}
                     </h3>

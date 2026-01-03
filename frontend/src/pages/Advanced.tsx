@@ -9,7 +9,8 @@ import {
   CheckCircle2, 
   RefreshCw,
   Trash2,
-  Users 
+  Users,
+  Heart
 } from "lucide-react";
 
 import { Header } from "@/components/Header";
@@ -57,7 +58,8 @@ const Advanced = () => {
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNarrator, setSelectedNarrator] = useState("");
   const [hadith, setHadith] = useState<Hadith | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'recite' | 'saved'>('search');
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   
@@ -68,6 +70,7 @@ const Advanced = () => {
 
   // Load saved hadiths from localStorage on component mount
   useEffect(() => {
+    loadPracticeHadith();
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('savedHadiths');
       if (saved) {
@@ -93,13 +96,10 @@ const Advanced = () => {
       setLoading(true);
       const dailyHadith = await getDailyHadith();
       setHadith(dailyHadith);
+      setError(null);
     } catch (error) {
       console.error("Failed to load daily hadith:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load hadith. Please try again.",
-        variant: "destructive",
-      });
+      setError('Failed to load hadith. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -110,13 +110,10 @@ const Advanced = () => {
       setLoading(true);
       const newHadith = await forceRefreshDailyHadith();
       setHadith(newHadith);
-    } catch (error) {
-      console.error("Failed to load new hadith:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load new hadith. Please try again.",
-        variant: "destructive",
-      });
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load new hadith:', err);
+      setError('Failed to load hadith. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -241,6 +238,14 @@ const Advanced = () => {
               >
                 <Search className="mr-2 h-4 w-4" />
                 Search
+              </Button>
+              <Button
+                variant="ghost"
+                className="rounded-none border-b-2 border-transparent hover:border-primary"
+                onClick={() => navigate('/liked-hadiths')}
+              >
+                <Heart className="mr-2 h-4 w-4" />
+                Liked Hadiths
               </Button>
               <Button
                 variant="ghost"
@@ -466,6 +471,17 @@ const Advanced = () => {
                 <div className="flex justify-center items-center h-40">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+              ) : error ? (
+                <div className="text-center text-destructive p-4">
+                  {error}
+                  <Button 
+                    variant="ghost" 
+                    className="mt-2" 
+                    onClick={loadPracticeHadith}
+                  >
+                    Try Again
+                  </Button>
+                </div>
               ) : hadith ? (
                 <div className="space-y-6">
                   <div className="text-right text-2xl leading-loose font-arabic">
@@ -477,32 +493,33 @@ const Advanced = () => {
                     </p>
                     <p className="text-foreground">{hadith.english.text}</p>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-muted-foreground">
-                      Reference: {hadith.bookName || `Book ${hadith.reference.book}`}, Hadith {hadith.reference.hadith}
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSaveHadith(hadith)}
-                        disabled={savedHadiths.some(h => h.id === hadith.id)}
-                      >
-                        {savedHadiths.some(h => h.id === hadith.id) ? (
-                          <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                        ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Reference: Book {hadith.reference.book}, Hadith {hadith.reference.hadith}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={() => handleSaveHadith(hadith)}
+                      disabled={savedHadiths.some(h => h.id === hadith.id)}
+                    >
+                      {savedHadiths.some(h => h.id === hadith.id) ? (
+                        <>
+                          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Saved
+                        </>
+                      ) : (
+                        <>
                           <Bookmark className="mr-2 h-4 w-4" />
-                        )}
-                        {savedHadiths.some(h => h.id === hadith.id) ? 'Saved' : 'Save'}
-                      </Button>
-                    </div>
+                          Save
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No hadith available. Try searching first.
-                </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 

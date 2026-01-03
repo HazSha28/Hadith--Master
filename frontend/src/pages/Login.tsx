@@ -24,23 +24,23 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await signIn(email, password);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await signIn(email, password);
       toast({
         title: "Success",
         description: "Logged in successfully!",
       });
       navigate("/");
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to login. Please check your credentials.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -94,12 +94,20 @@ const Login = () => {
                   {loading ? "Logging in..." : "Login"}
                 </Button>
 
-                <p className="text-center text-sm text-muted-foreground">
-                  Don't have an account?{" "}
-                  <Link to="/signup" className="text-accent hover:underline">
-                    Create Account
+                <div className="text-center space-y-3 pt-2">
+                  <Link 
+                    to="/forgot-password" 
+                    className="text-sm text-accent hover:text-accent/80 hover:underline font-medium transition-colors"
+                  >
+                    Forgot your password?
                   </Link>
-                </p>
+                  <div className="text-sm text-muted-foreground">
+                    Don't have an account?{" "}
+                    <Link to="/signup" className="text-accent hover:text-accent/80 hover:underline font-medium transition-colors">
+                      Create Account
+                    </Link>
+                  </div>
+                </div>
               </form>
             </CardContent>
           </Card>

@@ -1,29 +1,147 @@
-rules_version='2'
+rules_version = '2'
+// Updated: 2025-02-21 v3 - Admin collection based system
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read access to hadiths for all users
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userIdField) {
+      return isAuthenticated() && 
+             request.auth.uid == resource.data[userIdField];
+    }
+    
+    // Helper function for data validation
+    function isValidHadith(data) {
+      return data.id != null &&
+             data.arabic != null &&
+             data.english != null &&
+             data.english.text != null &&
+             data.english.narrator != null &&
+             data.reference != null &&
+             data.chapter != null &&
+             data.category != null &&
+             data.difficulty != null &&
+             data.tags != null &&
+             data.createdAt != null;
+    }
+    
+    function isValidBook(data) {
+      return data.name != null &&
+             data.fullName != null &&
+             data.author != null &&
+             data.description != null &&
+             data.totalHadiths != null &&
+             data.categories != null &&
+             data.difficulty != null &&
+             data.language != null &&
+             data.year != null &&
+             data.compiler != null;
+    }
+    
+    // ==================== ADMIN COLLECTION ====================
+    
+    // Admin collection - Only existing admins can add new admins
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== PUBLIC COLLECTIONS ====================
+    
+    // Hadiths collection - Public read, authenticated write
     match /hadiths/{hadithId} {
       allow read: if true;
-      allow write: if request.auth != null; // Only authenticated users can write
-      allow delete: if request.auth != null; // Only authenticated users can delete
+      allow create: if isAdmin() && isValidHadith(request.resource.data);
+      allow update: if isAdmin() && isValidHadith(request.resource.data);
+      allow delete: if isAdmin();
     }
     
-    // Allow read access to daily hadith schedule
+    // Books metadata - Public read, admin write
+    match /books/{bookId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidBook(request.resource.data);
+      allow update: if isAdmin() && isValidBook(request.resource.data);
+      allow delete: if isAdmin();
+    }
+    
+    // Categories - Public read, admin write
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Difficulty levels - Public read, admin write
+    match /difficultyLevels/{levelId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Daily hadith schedule - Public read, admin write
     match /dailyHadithSchedule/{scheduleId} {
       allow read: if true;
-      allow write: if request.auth != null; // Only authenticated users can write
-      allow delete: if request.auth != null; // Only authenticated users can delete
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
     
-    // Allow read access to user collections
+    // Search indexes - Admin only
+    match /searchIndexes/{indexId} {
+      allow read, write: if isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Analytics - Admin only
+    match /analytics/{analyticsId} {
+      allow read, write: if isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== USER-SPECIFIC COLLECTIONS ====================
+    
+    // User profiles - All authenticated users can create profiles, no approval needed
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
     }
     
-    // Allow read access to saved hadiths
-    match /savedHadiths/{savedId} {
-      allow read, write: if request.auth != null;
+    // Scholar comments - Admin management, public read for approved comments
+    match /scholarComments/{commentId} {
+      allow read: if resource.data.status == 'approved' || isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // User saved hadiths - Owner only
+    match /userCollections/{userId}/savedHadiths/{hadithId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

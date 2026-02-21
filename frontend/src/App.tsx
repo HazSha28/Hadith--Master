@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import ErrorBoundary from "./components/auth/ErrorBoundary";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import AdminProtectedRoute from "./components/auth/AdminProtectedRoute";
 import Index from "@/pages/Index";
 import Beginner from "@/pages/Beginner";
 import Advanced from "@/pages/Advanced";
@@ -23,6 +24,8 @@ import Help from "@/pages/Help";
 import NotFound from "@/pages/NotFound";
 import RealTimeChat from "@/components/RealTimeChat";
 import AdminChatDashboard from "@/components/AdminChatDashboard";
+import AdminPanel from "@/components/admin/AdminPanel";
+import AdminSetupGuide from "@/components/admin/AdminSetupGuide";
 import FloatingChatButton from "./components/chat/FloatingChatButton";
 
 const queryClient = new QueryClient();
@@ -88,6 +91,16 @@ const App = () => (
                   <Route path="/admin/chat" element={
                     <ProtectedRoute>
                       <main><AdminChatDashboard /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/panel" element={
+                    <AdminProtectedRoute>
+                      <main><AdminPanel /></main>
+                    </AdminProtectedRoute>
+                  } />
+                  <Route path="/admin/setup" element={
+                    <ProtectedRoute>
+                      <main><AdminSetupGuide /></main>
                     </ProtectedRoute>
                   } />
                   <Route path="/login" element={<Login />} />

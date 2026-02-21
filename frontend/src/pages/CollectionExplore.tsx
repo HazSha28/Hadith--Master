@@ -15,7 +15,8 @@ import {
   User,
   CheckCircle,
   AlertCircle
-} from 'lucide-react';
+}  
+from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -162,7 +163,7 @@ const CollectionExplore: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // State
+  // State      
   const [hadiths, setHadiths] = useState<Hadith[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);

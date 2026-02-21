@@ -10,7 +10,7 @@ const LikedHadithsTest: React.FC = () => {
     <div className="min-h-screen bg-background">
       <div className="bg-primary text-primary-foreground shadow-md">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center ga-4 mb-4">
             <Button 
               variant="ghost" 
               className="text-primary-foreground hover:bg-primary-foreground/20"

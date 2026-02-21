@@ -9,6 +9,12 @@ export interface UserData {
   photoURL?: string;
   createdAt: Date;
   lastLoginAt?: Date;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  role: 'user' | 'scholar' | 'admin';
+  requestedRole?: 'scholar' | 'admin';
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: Date;
   preferences?: {
     theme?: 'light' | 'dark';
     notifications?: boolean;
@@ -25,6 +31,8 @@ export const createUserData = async (user: User): Promise<void> => {
       photoURL: user.photoURL || undefined,
       createdAt: new Date(),
       lastLoginAt: new Date(),
+      status: 'pending',
+      role: 'user',
       preferences: {
         theme: 'light',
         notifications: true

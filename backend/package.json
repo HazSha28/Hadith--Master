@@ -4,13 +4,22 @@
   "type": "module",
   "main": "testFirebase.js",
   "scripts": {
-    "start": "node testFirebase.js"
+    "start": "node testFirebase.js",
+    "ingest-hadiths": "node ingestHadiths.js",
+    "validate-hadiths": "node validateHadiths.js",
+    "upload-hadiths": "node uploadHadithsToFirebase.js"
   },
-  "keywords": [],
+  "keywords": [
+    "hadith",
+    "islam",
+    "api",
+    "data-ingestion"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Backend for Hadith Master application with comprehensive hadith data ingestion",
   "dependencies": {
-    "firebase": "^12.5.0"
+    "axios": "^1.6.0",
+    "firebase": "^12.9.0"
   }
 }

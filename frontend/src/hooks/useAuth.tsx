@@ -23,6 +23,7 @@ export type UserProfile = {
   uid: string;
   email: string | null;
   fullName: string;
+  displayName?: string; // For compatibility
   role: "user" | "admin";
   premium: boolean;
   credits: number;
@@ -58,6 +59,7 @@ export function useAuth() {
           uid: currentUser.uid,
           email: currentUser.email,
           fullName: currentUser.displayName || "",
+          displayName: currentUser.displayName || "", // Keep both for compatibility
           role: "user",
           premium: false,
           credits: 5,
@@ -94,6 +96,7 @@ export function useAuth() {
       uid: cred.user.uid,
       email,
       fullName,
+      displayName: fullName, // Keep both for compatibility
       role: "user",
       premium: false,
       credits: 5,

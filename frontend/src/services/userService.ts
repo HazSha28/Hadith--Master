@@ -21,13 +21,13 @@ export interface UserData {
   };
 }
 
-export const createUserData = async (user: User): Promise<void> => {
+export const createUserData = async (user: User, displayName?: string): Promise<void> => {
   try {
     const userRef = doc(db, 'users', user.uid);
     const userData: UserData = {
       uid: user.uid,
       email: user.email || '',
-      displayName: user.displayName || undefined,
+      displayName: displayName || user.displayName || undefined,
       photoURL: user.photoURL || undefined,
       createdAt: new Date(),
       lastLoginAt: new Date(),
@@ -51,7 +51,7 @@ export const getUserData = async (uid: string): Promise<UserData | null> => {
   try {
     const userRef = doc(db, 'users', uid);
     const docSnap = await getDoc(userRef);
-    
+
     if (docSnap.exists()) {
       return docSnap.data() as UserData;
     } else {

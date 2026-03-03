@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 
 const Signup = () => {
@@ -14,7 +14,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signUp, user } = useAuth();
+  const { signUp, currentUser: user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -44,24 +44,23 @@ const Signup = () => {
     }
 
     setLoading(true);
-
-    const { error } = await signUp(email, password, fullName);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await signUp(email, password, fullName);
       toast({
         title: "Success",
         description: "Account created successfully!",
       });
       navigate("/");
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -74,7 +73,7 @@ const Signup = () => {
           </Link>
         </div>
       </header>
-      
+
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card className="bg-card shadow-lg">
@@ -110,7 +109,7 @@ const Signup = () => {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input

@@ -21,6 +21,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import About from "@/pages/About";
 import Help from "@/pages/Help";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 import RealTimeChat from "@/components/RealTimeChat";
 import AdminChatDashboard from "@/components/AdminChatDashboard";
@@ -61,6 +62,11 @@ const App = () => (
                   <Route path="/liked-hadiths" element={
                     <ProtectedRoute>
                       <main><LikedHadiths /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <main><Profile /></main>
                     </ProtectedRoute>
                   } />
                   <Route path="/book/:bookName" element={

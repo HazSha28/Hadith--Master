@@ -11,6 +11,8 @@ interface Hadith {
     book: number;
     hadith: number;
   };
+  bookName?: string;
+  chapter?: string;
 }
 
 const DAILY_HADITH_KEY = 'daily_hadith';
@@ -18,11 +20,11 @@ const DAILY_HADITH_DATE_KEY = 'daily_hadith_date';
 
 export const getDailyHadith = async (): Promise<Hadith> => {
   const today = new Date().toDateString();
-  
+
   // Check if we already have a hadith for today
   const storedHadith = localStorage.getItem(DAILY_HADITH_KEY);
   const storedDate = localStorage.getItem(DAILY_HADITH_DATE_KEY);
-  
+
   if (storedHadith && storedDate === today) {
     try {
       return JSON.parse(storedHadith);
@@ -30,19 +32,19 @@ export const getDailyHadith = async (): Promise<Hadith> => {
       console.error('Error parsing stored hadith:', error);
     }
   }
-  
+
   // If no hadith for today or date changed, fetch a new one
   try {
     const newHadith = await fetchRandomHadith();
-    
+
     // Store the new hadith and today's date
     localStorage.setItem(DAILY_HADITH_KEY, JSON.stringify(newHadith));
     localStorage.setItem(DAILY_HADITH_DATE_KEY, today);
-    
+
     return newHadith;
   } catch (error) {
     console.error('Error fetching daily hadith:', error);
-    
+
     // If fetching fails, return the stored hadith if available
     if (storedHadith) {
       try {
@@ -51,7 +53,7 @@ export const getDailyHadith = async (): Promise<Hadith> => {
         console.error('Error parsing fallback hadith:', parseError);
       }
     }
-    
+
     // If everything fails, throw the error
     throw error;
   }

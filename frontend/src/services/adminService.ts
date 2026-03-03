@@ -1,14 +1,14 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
   setDoc,
-  query, 
-  where, 
-  orderBy, 
+  query,
+  where,
+  orderBy,
   limit,
   Timestamp,
   addDoc,
@@ -16,7 +16,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ADMIN_CONFIG } from '../config/adminConfig';
+import { ADMIN_CONFIG, getAdminStatus } from '../config/adminConfig';
 
 export interface UserApproval {
   uid: string;
@@ -63,25 +63,30 @@ export interface AdminUser {
 
 const ADMIN_UIDS = ADMIN_CONFIG.ADMIN_UIDS;
 
-export const isAdmin = async (uid: string): Promise<boolean> => {
+export const isAdmin = async (uid: string, email?: string | null): Promise<boolean> => {
   try {
+    // Check Config first (Fastest)
+    if (getAdminStatus(uid, email)) {
+      return true;
+    }
+
     // Check if user exists in admins collection
     const adminRef = doc(db, 'admins', uid);
     const adminDoc = await getDoc(adminRef);
-    
+
     if (adminDoc.exists()) {
       return true;
     }
-    
+
     // Fallback: Check user role in users collection
     const userRef = doc(db, 'users', uid);
     const userDoc = await getDoc(userRef);
-    
+
     if (userDoc.exists()) {
       const userData = userDoc.data() as UserApproval;
       return userData.role === 'admin';
     }
-    
+
     return false;
   } catch (error) {
     console.error('Error checking admin status:', error);
@@ -93,7 +98,7 @@ export const getAllUsers = async (): Promise<UserApproval[]> => {
   try {
     const usersRef = collection(db, 'users');
     const snapshot = await getDocs(usersRef);
-    
+
     return snapshot.docs.map(doc => ({
       uid: doc.id,
       ...doc.data()
@@ -109,7 +114,7 @@ export const getPendingUsers = async (): Promise<UserApproval[]> => {
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('status', '==', 'pending'));
     const snapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       uid: doc.id,
       ...doc.data()
@@ -184,7 +189,7 @@ export const getScholarComments = async (): Promise<ScholarComment[]> => {
     const commentsRef = collection(db, 'scholarComments');
     const q = query(commentsRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -200,7 +205,7 @@ export const getPendingComments = async (): Promise<ScholarComment[]> => {
     const commentsRef = collection(db, 'scholarComments');
     const q = query(commentsRef, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -254,15 +259,15 @@ export const getAdminStats = async () => {
   try {
     const usersRef = collection(db, 'users');
     const commentsRef = collection(db, 'scholarComments');
-    
+
     const [usersSnapshot, commentsSnapshot] = await Promise.all([
       getDocs(usersRef),
       getDocs(commentsRef)
     ]);
-    
+
     const users = usersSnapshot.docs.map(doc => doc.data() as UserApproval);
     const comments = commentsSnapshot.docs.map(doc => doc.data() as ScholarComment);
-    
+
     return {
       totalUsers: users.length,
       pendingUsers: users.filter(u => u.status === 'pending').length,
@@ -312,7 +317,7 @@ export const getAllAdmins = async (): Promise<AdminUser[]> => {
   try {
     const adminsRef = collection(db, 'admins');
     const snapshot = await getDocs(adminsRef);
-    
+
     return snapshot.docs.map(doc => ({
       uid: doc.id,
       ...doc.data()

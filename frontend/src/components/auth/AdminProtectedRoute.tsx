@@ -19,7 +19,7 @@ const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({ children }) =
       }
 
       try {
-        const adminStatus = await isAdmin(currentUser.uid);
+        const adminStatus = await isAdmin(currentUser.uid, currentUser.email);
         setIsAdminUser(adminStatus);
         setIsAdminChecked(true);
       } catch (error) {

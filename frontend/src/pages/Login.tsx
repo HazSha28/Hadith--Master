@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, user } = useAuth();
+  const { signIn, currentUser: user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -53,7 +53,7 @@ const Login = () => {
           </Link>
         </div>
       </header>
-      
+
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card className="bg-card shadow-lg">
@@ -76,7 +76,7 @@ const Login = () => {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -95,8 +95,8 @@ const Login = () => {
                 </Button>
 
                 <div className="text-center space-y-3 pt-2">
-                  <Link 
-                    to="/forgot-password" 
+                  <Link
+                    to="/forgot-password"
                     className="text-sm text-accent hover:text-accent/80 hover:underline font-medium transition-colors"
                   >
                     Forgot your password?

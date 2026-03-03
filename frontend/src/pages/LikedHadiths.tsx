@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Heart, 
-  Bookmark, 
-  Share2, 
+import {
+  Heart,
+  Bookmark,
+  Share2,
   ChevronLeft,
   Volume2,
   Sparkles,
@@ -23,19 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { ShareDialog } from '@/components/ShareDialog';
-
-// Types (same as CollectionExplore)
-interface Hadith {
-  id: string;
-  book: string;
-  number: string;
-  arabic: string;
-  english: string;
-  narrator: string;
-  authenticity: 'sahih' | 'hasan' | 'daif';
-  bookSlug: string;
-}
+import { Hadith, getHadithById } from '@/lib/hadithApiService';
 
 const LikedHadiths: React.FC = () => {
   const navigate = useNavigate();
@@ -52,39 +40,6 @@ const LikedHadiths: React.FC = () => {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedHadith, setSelectedHadith] = useState<Hadith | null>(null);
 
-  // Mock liked hadiths data (in production, this would come from your backend)
-  const mockLikedHadiths: Hadith[] = [
-    {
-      id: 'bukhari-1',
-      book: 'Sahih al-Bukhari',
-      number: '1',
-      arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
-      english: 'Actions are judged by intentions, so each man will have what he intended.',
-      narrator: 'Umar ibn Al-Khattab',
-      authenticity: 'sahih',
-      bookSlug: 'sahih-bukhari'
-    },
-    {
-      id: 'muslim-45',
-      book: 'Sahih Muslim',
-      number: '45',
-      arabic: 'الطَّهُورُ شَطْرُ الإِيمَانِ',
-      english: 'Purity is half of faith.',
-      narrator: 'Abu Hurairah',
-      authenticity: 'sahih',
-      bookSlug: 'sahih-muslim'
-    },
-    {
-      id: 'tirmidhi-123',
-      book: 'Jamiʿ at-Tirmidhi',
-      number: '123',
-      arabic: 'مَنْ عَمِلَ عَمَلًا لَيْسَ عَلَيْهِ أَمْرُنَا فَهُوَ رَدٌّ',
-      english: 'Whoever does a deed that is not in accordance with our matter, will have it rejected.',
-      narrator: 'Aisha bint Abu Bakr',
-      authenticity: 'hasan',
-      bookSlug: 'jami-at-tirmidhi'
-    }
-  ];
 
   // Load liked hadiths
   useEffect(() => {
@@ -94,17 +49,23 @@ const LikedHadiths: React.FC = () => {
     }
 
     const loadLikedHadiths = async () => {
+      const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
+      if (!liked) {
+        setLikedHadiths([]);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        // In production, this would be an API call
-        // const response = await fetch(`/api/users/${user.id}/liked-hadiths`);
-        // const data = await response.json();
-        
-        // For now, use mock data
-        setTimeout(() => {
-          setLikedHadiths(mockLikedHadiths);
-          setLoading(false);
-        }, 500);
+        const likedIds: string[] = JSON.parse(liked);
+        const fetchedHadiths = await Promise.all(
+          likedIds.map(id => getHadithById(id))
+        );
+
+        // Filter out any nulls in case a hadith was deleted or not found
+        setLikedHadiths(fetchedHadiths.filter((h): h is Hadith => h !== null));
+        setLoading(false);
       } catch (error) {
         console.error('Failed to load liked hadiths:', error);
         toast({
@@ -129,7 +90,7 @@ const LikedHadiths: React.FC = () => {
   const handleUnlike = (hadithId: string) => {
     const newLiked = likedHadiths.filter(h => h.id !== hadithId);
     setLikedHadiths(newLiked);
-    
+
     // Update localStorage
     const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
     if (liked) {
@@ -152,13 +113,13 @@ const LikedHadiths: React.FC = () => {
     } else {
       newSaved.add(hadithId);
     }
-    
+
     setSavedHadiths(newSaved);
     localStorage.setItem(`saved-hadiths-${user.id}`, JSON.stringify([...newSaved]));
-    
+
     toast({
       title: newSaved.has(hadithId) ? 'Hadith Saved' : 'Hadith Removed',
-      description: newSaved.has(hadithId) 
+      description: newSaved.has(hadithId)
         ? 'Hadith has been added to your collection.'
         : 'Hadith has been removed from your collection.'
     });
@@ -183,26 +144,25 @@ const LikedHadiths: React.FC = () => {
   // Filter and sort hadiths
   const filteredHadiths = likedHadiths
     .filter(hadith => {
-      const matchesSearch = searchTerm === '' || 
-        hadith.arabic.includes(searchTerm) || 
-        hadith.english.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        hadith.narrator.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = searchTerm === '' ||
+        hadith.arabic.includes(searchTerm) ||
+        hadith.english.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        hadith.english.narrator.toLowerCase().includes(searchTerm.toLowerCase()) ||
         hadith.book.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesAuthenticity = authenticityFilter === 'all' || hadith.authenticity === authenticityFilter;
-      
+
+      const matchesAuthenticity = authenticityFilter === 'all' ||
+        (hadith.difficulty && hadith.difficulty.toLowerCase() === authenticityFilter);
+
       return matchesSearch && matchesAuthenticity;
     })
     .sort((a, b) => {
       switch (sortBy) {
         case 'book':
           return a.book.localeCompare(b.book);
-        case 'authenticity':
-          return a.authenticity.localeCompare(b.authenticity);
         case 'number':
-          return a.number.localeCompare(b.number);
-        default: // date
-          return 0; // In production, sort by like date
+          return a.reference.hadith.localeCompare(b.reference.hadith);
+        default: // date or other
+          return 0;
       }
     });
 
@@ -226,8 +186,8 @@ const LikedHadiths: React.FC = () => {
       <div className="bg-primary text-primary-foreground shadow-md">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center gap-4 mb-4">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="text-primary-foreground hover:bg-primary-foreground/20"
               onClick={() => navigate('/')}
             >
@@ -320,7 +280,7 @@ const LikedHadiths: React.FC = () => {
               {likedHadiths.length === 0 ? 'No liked hadiths yet' : 'No matching hadiths found'}
             </h3>
             <p className="text-muted-foreground mb-4">
-              {likedHadiths.length === 0 
+              {likedHadiths.length === 0
                 ? 'Start exploring hadiths and like your favorites to build your collection.'
                 : 'Try adjusting your search terms or filters'
               }
@@ -392,13 +352,14 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
   const handleVoicePlay = () => {
     setIsPlaying(!isPlaying);
     if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(hadith.english);
+      const utterance = new SpeechSynthesisUtterance(hadith.english.text);
       utterance.lang = 'en-US';
       if (isPlaying) {
         window.speechSynthesis.cancel();
       } else {
         window.speechSynthesis.speak(utterance);
       }
+      utterance.onend = () => setIsPlaying(false);
     }
   };
 
@@ -410,13 +371,15 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
           <div className="flex items-center gap-3">
             <div>
               <h3 className="font-semibold text-lg">{hadith.book}</h3>
-              <p className="text-sm text-muted-foreground">Hadith {hadith.number}</p>
+              <p className="text-sm text-muted-foreground">Hadith {hadith.reference.hadith}</p>
             </div>
-            <Badge className={getAuthenticityColor(hadith.authenticity)}>
-              {hadith.authenticity.charAt(0).toUpperCase() + hadith.authenticity.slice(1)}
-            </Badge>
+            {hadith.difficulty && (
+              <Badge className={getAuthenticityColor(hadith.difficulty.toLowerCase())}>
+                {hadith.difficulty}
+              </Badge>
+            )}
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex items-center gap-1">
             <Button
@@ -427,7 +390,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
             >
               <Heart className="h-4 w-4 fill-current" />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -436,7 +399,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
             >
               <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -445,7 +408,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
             >
               <Share2 className="h-4 w-4" />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -454,7 +417,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
             >
               <Volume2 className={`h-4 w-4 ${isPlaying ? 'text-blue-500' : ''}`} />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -469,7 +432,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
         {/* Narrator */}
         <div className="flex items-center gap-2 mb-4">
           <User className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Narrated by {hadith.narrator}</span>
+          <span className="text-sm text-muted-foreground">Narrated by {hadith.english.narrator}</span>
         </div>
 
         {/* Arabic Text */}
@@ -482,7 +445,7 @@ const LikedHadithCard: React.FC<LikedHadithCardProps> = ({
         {/* English Translation */}
         <div className="border-t pt-4">
           <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-            {hadith.english}
+            {hadith.english.text}
           </p>
         </div>
 

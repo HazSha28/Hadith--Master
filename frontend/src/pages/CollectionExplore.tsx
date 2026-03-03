@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  Filter, 
-  Heart, 
-  Bookmark, 
-  Share2, 
-  ChevronLeft, 
+import {
+  Search,
+  Filter,
+  Heart,
+  Bookmark,
+  Share2,
+  ChevronLeft,
   ChevronRight,
   Volume2,
   Sparkles,
@@ -15,8 +15,8 @@ import {
   User,
   CheckCircle,
   AlertCircle
-}  
-from 'lucide-react'; 
+}
+  from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { ShareDialog } from '@/components/ShareDialog';
+import { getHadithsByBook, searchHadiths } from '@/lib/hadithApiService';
 
 // Types
 interface Hadith {
@@ -56,36 +57,42 @@ interface HadithApiResponse {
 // Book metadata
 const BOOK_METADATA = {
   'sahih-bukhari': {
+    id: 'sahih_bukhari',
     name: 'Sahih al-Bukhari',
     description: 'The most authentic collection of hadiths',
     totalHadiths: 7563,
     color: 'green'
   },
   'sahih-muslim': {
+    id: 'sahih_muslim',
     name: 'Sahih Muslim',
     description: 'Second most authentic collection',
     totalHadiths: 7459,
     color: 'green'
   },
   'sunan-abu-dawud': {
+    id: 'sunan_abu_dawud',
     name: 'Sunan Abu Dawud',
     description: 'Collection focusing on legal traditions',
     totalHadiths: 5276,
     color: 'yellow'
   },
   'jami-at-tirmidhi': {
+    id: 'jami_tirmidhi',
     name: 'Jamiʿ at-Tirmidhi',
     description: 'Comprehensive collection with juristical notes',
     totalHadiths: 4053,
     color: 'yellow'
   },
   'sunan-an-nasai': {
+    id: 'sunan_nasai',
     name: 'Sunan an-Nasaʾi',
-    description: 'Collection with rigorous authentication',
+    description: 'Collection with rigorous authentication standards',
     totalHadiths: 5768,
     color: 'yellow'
   },
   'sunan-ibn-majah': {
+    id: 'sunan_ibn_majah',
     name: 'Sunan Ibn Majah',
     description: 'Sixth canonical collection',
     totalHadiths: 4345,
@@ -95,67 +102,7 @@ const BOOK_METADATA = {
 
 type BookSlug = keyof typeof BOOK_METADATA;
 
-// Mock API service (replace with real API)
-const fetchHadiths = async (bookSlug: string, page: number = 1, search?: string, filter?: string): Promise<HadithApiResponse> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Mock data - in production, this would be a real API call
-  const mockHadiths: Hadith[] = [
-    {
-      id: `${bookSlug}-1`,
-      book: BOOK_METADATA[bookSlug as BookSlug]?.name || 'Unknown',
-      number: '1',
-      arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
-      english: 'Actions are judged by intentions, so each man will have what he intended.',
-      narrator: 'Umar ibn Al-Khattab',
-      authenticity: 'sahih',
-      bookSlug
-    },
-    {
-      id: `${bookSlug}-2`,
-      book: BOOK_METADATA[bookSlug as BookSlug]?.name || 'Unknown',
-      number: '2',
-      arabic: 'مَنْ عَمِلَ عَمَلًا لَيْسَ عَلَيْهِ أَمْرُنَا فَهُوَ رَدٌّ',
-      english: 'Whoever does a deed that is not in accordance with our matter, will have it rejected.',
-      narrator: 'Aisha bint Abu Bakr',
-      authenticity: 'sahih',
-      bookSlug
-    },
-    {
-      id: `${bookSlug}-3`,
-      book: BOOK_METADATA[bookSlug as BookSlug]?.name || 'Unknown',
-      number: '3',
-      arabic: 'الطَّهُورُ شَطْرُ الإِيمَانِ',
-      english: 'Purity is half of faith.',
-      narrator: 'Abu Hurairah',
-      authenticity: 'hasan',
-      bookSlug
-    }
-  ];
-
-  // Apply search filter
-  let filteredHadiths = mockHadiths;
-  if (search) {
-    filteredHadiths = mockHadiths.filter(hadith => 
-      hadith.arabic.includes(search) || 
-      hadith.english.toLowerCase().includes(search.toLowerCase()) ||
-      hadith.narrator.toLowerCase().includes(search.toLowerCase())
-    );
-  }
-
-  // Apply authenticity filter
-  if (filter && filter !== 'all') {
-    filteredHadiths = filteredHadiths.filter(hadith => hadith.authenticity === filter);
-  }
-
-  return {
-    hadiths: filteredHadiths,
-    total: filteredHadiths.length,
-    page,
-    totalPages: Math.ceil(filteredHadiths.length / 10)
-  };
-};
+/** Real API Data Fetching removed mock logic */
 
 const CollectionExplore: React.FC = () => {
   const { bookSlug } = useParams<{ bookSlug: string }>();
@@ -181,14 +128,43 @@ const CollectionExplore: React.FC = () => {
 
   // Load hadiths
   const loadHadiths = useCallback(async () => {
-    if (!bookSlug) return;
+    if (!bookSlug || !bookInfo) return;
 
     setLoading(true);
     try {
-      const response = await fetchHadiths(bookSlug, currentPage, searchTerm, authenticityFilter);
-      setHadiths(response.hadiths);
-      setTotalPages(response.totalPages);
-      setTotalHadiths(response.total);
+      let response;
+      if (searchTerm) {
+        // Use search endpoint if search term is present
+        response = await searchHadiths(searchTerm, {
+          book: bookInfo.id,
+          page: currentPage,
+          limit: 10
+        });
+      } else {
+        // Use regular book endpoint
+        response = await getHadithsByBook(bookInfo.id, {
+          page: currentPage,
+          limit: 10
+        });
+      }
+
+      if (response && response.hadiths) {
+        setHadiths(response.hadiths.map(h => ({
+          id: h.id,
+          book: h.book,
+          number: h.reference.hadith,
+          arabic: h.arabic,
+          english: h.english.text,
+          narrator: h.english.narrator,
+          authenticity: 'sahih', // Defaulting to sahih if not in DB yet
+          bookSlug: bookSlug
+        } as Hadith)));
+
+        if (response.pagination) {
+          setTotalPages(response.pagination.totalPages);
+          setTotalHadiths(response.pagination.totalHadiths);
+        }
+      }
     } catch (error) {
       console.error('Failed to load hadiths:', error);
       toast({
@@ -199,7 +175,7 @@ const CollectionExplore: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [bookSlug, currentPage, searchTerm, authenticityFilter, toast]);
+  }, [bookSlug, bookInfo, currentPage, searchTerm, toast]);
 
   // Handle hash navigation for jumping to specific hadith
   useEffect(() => {
@@ -231,7 +207,7 @@ const CollectionExplore: React.FC = () => {
     if (user) {
       const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
       const saved = localStorage.getItem('savedHadiths');
-      
+
       if (liked) setLikedHadiths(new Set(JSON.parse(liked)));
       if (saved) {
         try {
@@ -261,7 +237,7 @@ const CollectionExplore: React.FC = () => {
     } else {
       newLiked.add(hadithId);
     }
-    
+
     setLikedHadiths(newLiked);
     localStorage.setItem(`liked-hadiths-${user.id}`, JSON.stringify([...newLiked]));
   };
@@ -289,7 +265,7 @@ const CollectionExplore: React.FC = () => {
         } else {
           localStorage.setItem('savedHadiths', JSON.stringify(updated));
         }
-        
+
         toast({
           title: 'Hadith Removed',
           description: 'Hadith has been removed from your collection.'
@@ -308,7 +284,7 @@ const CollectionExplore: React.FC = () => {
         };
         const updated = [...prev, hadithToSave];
         localStorage.setItem('savedHadiths', JSON.stringify(updated));
-        
+
         toast({
           title: 'Hadith Saved',
           description: 'Hadith has been added to your collection.'
@@ -343,6 +319,28 @@ const CollectionExplore: React.FC = () => {
   // Handle pagination
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Calculate visible page range
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      let start = Math.max(1, currentPage - 2);
+      let end = start + maxVisiblePages - 1;
+
+      if (end > totalPages) {
+        end = totalPages;
+        start = Math.max(1, end - maxVisiblePages + 1);
+      }
+
+      for (let i = start; i <= end; i++) pages.push(i);
+    }
+    return pages;
   };
 
   if (!bookInfo) {
@@ -366,8 +364,8 @@ const CollectionExplore: React.FC = () => {
       <div className="bg-primary text-primary-foreground shadow-md">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center gap-4 mb-4">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="text-primary-foreground hover:bg-primary-foreground/20"
               onClick={() => navigate('/')}
             >
@@ -496,21 +494,18 @@ const CollectionExplore: React.FC = () => {
               <ChevronLeft className="h-4 w-4" />
               Previous
             </Button>
-            
+
             <div className="flex items-center gap-2">
-              {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                const page = i + 1;
-                return (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageChange(page)}
-                  >
-                    {page}
-                  </Button>
-                );
-              })}
+              {getPageNumbers().map((page) => (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handlePageChange(page)}
+                >
+                  {page}
+                </Button>
+              ))}
             </div>
 
             <Button
@@ -587,7 +582,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
               {hadith.authenticity.charAt(0).toUpperCase() + hadith.authenticity.slice(1)}
             </Badge>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex items-center gap-1">
             <Button
@@ -598,7 +593,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
             >
               <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -607,7 +602,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
             >
               <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -616,7 +611,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
             >
               <Share2 className="h-4 w-4" />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -625,7 +620,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
             >
               <Volume2 className={`h-4 w-4 ${isPlaying ? 'text-blue-500' : ''}`} />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"

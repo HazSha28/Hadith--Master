@@ -1,18 +1,21 @@
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { 
-  Loader2, 
-  BookOpen, 
-  Mic, 
-  Search, 
-  Bookmark, 
-  CheckCircle2, 
+import {
+  Loader2,
+  BookOpen,
+  Mic,
+  Search,
+  Bookmark,
+  CheckCircle2,
   RefreshCw,
   Trash2,
   Users,
   Heart,
-  Star
+  Star,
+  ChevronDown,
+  ChevronUp,
+  Sparkles
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -44,10 +47,13 @@ interface Hadith {
     book: number;
     hadith: number;
   };
+  bookName?: string;
+  chapter?: string;
 }
 
 const Beginner = () => {
   const [searchText, setSearchText] = useState("");
+  const [isAiSearch, setIsAiSearch] = useState(true);
   const [selectedBook, setSelectedBook] = useState("");
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNarrator, setSelectedNarrator] = useState("");
@@ -56,6 +62,7 @@ const Beginner = () => {
   const [error, setError] = useState<string | null>(null);
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'collection'>('search');
+  const [isGuideExpanded, setIsGuideExpanded] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -113,7 +120,7 @@ const Beginner = () => {
       'Sunan an-Nasa\'i': 'sunan-an-nasai',
       'Sunan Ibn Majah': 'sunan-ibn-majah'
     };
-    
+
     const slug = bookSlugs[bookName] || bookName.toLowerCase().replace(/\s+/g, '-');
     navigate(`/collections/${slug}`);
   };
@@ -121,7 +128,10 @@ const Beginner = () => {
   const handleSearch = () => {
     const query = searchText || selectedBook || selectedAuthor || selectedNarrator;
     if (query) {
-      navigate(`/search-results?q=${encodeURIComponent(query)}`);
+      const params = new URLSearchParams();
+      params.set('q', query);
+      if (isAiSearch) params.set('ai', 'true');
+      navigate(`/search-results?${params.toString()}`);
     }
   };
 
@@ -150,7 +160,7 @@ const Beginner = () => {
       navigate('/login');
       return;
     }
-    
+
     setSavedHadiths(prev => {
       // Check if hadith is already saved
       const exists = prev.some(h => h.id === hadithToSave.id);
@@ -161,13 +171,13 @@ const Beginner = () => {
         });
         return prev;
       }
-      
+
       const updated = [...prev, { ...hadithToSave, status: 'saved' as const }];
       // Save to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('savedHadiths', JSON.stringify(updated));
       }
-      
+
       toast({
         title: 'Hadith Saved',
         description: 'The hadith has been added to your collection.',
@@ -194,7 +204,7 @@ const Beginner = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground text-center mb-4">
@@ -239,17 +249,31 @@ const Beginner = () => {
           {activeTab === 'search' && (
             <>
               {/* Hadith Flow Guide */}
-              <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-700 mb-8 max-w-4xl mx-auto">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
-                    <BookOpen className="h-6 w-6" />
-                    Understanding Hadith Flow - A Beginner's Guide
-                  </CardTitle>
-                  <CardDescription className="text-emerald-700 dark:text-emerald-300">
-                    Learn the fundamental process of how hadiths were preserved, authenticated, and transmitted
-                  </CardDescription>
+              <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-700 mb-8 max-w-4xl mx-auto overflow-hidden">
+                <CardHeader
+                  className="cursor-pointer hover:bg-emerald-100/50 dark:hover:bg-emerald-900/40 transition-colors py-4"
+                  onClick={() => setIsGuideExpanded(!isGuideExpanded)}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-6 w-6 text-emerald-800 dark:text-emerald-200" />
+                      <div>
+                        <CardTitle className="text-xl text-emerald-800 dark:text-emerald-200">
+                          Understanding Hadith Flow - A Beginner's Guide
+                        </CardTitle>
+                        <CardDescription className="text-emerald-700 dark:text-emerald-300">
+                          Click to {isGuideExpanded ? 'collapse' : 'expand'} &amp; learn how hadiths were preserved
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {isGuideExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                {isGuideExpanded && <CardContent className="space-y-6 pt-0 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
                   {/* The Chain of Transmission */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-emerald-200 dark:border-emerald-700">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
@@ -378,110 +402,136 @@ const Beginner = () => {
                       <li>• Remember: Not everything attributed to Prophet Muhammad (ﷺ) is authentic</li>
                     </ul>
                   </div>
-                </CardContent>
+                </CardContent>}
               </Card>
 
               <Card className="bg-card shadow-lg mb-8 max-w-3xl mx-auto">
-              <CardHeader>
-                <CardTitle>Beginner Hadith Search</CardTitle>
-                <CardDescription>
-                  Search for hadiths by keywords, book, author, or narrator
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4 max-w-3xl mx-auto">
-                  <div className="relative">
-                    <Textarea
-                      placeholder="Enter Hadith gist here..."
-                      className="bg-input border-border min-h-[80px] resize-none pr-24"
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                    />
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                      <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
+                <CardHeader>
+                  <CardTitle>Beginner Hadith Search</CardTitle>
+                  <CardDescription>
+                    Search for hadiths by keywords, book, author, or narrator
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4 max-w-3xl mx-auto">
+                    <div className="relative">
+                      <Textarea
+                        placeholder="Enter Hadith gist here..."
+                        className="bg-input border-border min-h-[80px] resize-none pr-24"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                      />
+                      <div className="absolute right-3 top-3 flex items-center gap-2">
+                        <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
+                        <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
+                      </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <Select value={selectedBook} onValueChange={handleBookSelect}>
+                        <SelectTrigger className="bg-input border-border">
+                          <SelectValue placeholder="Book Name" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover z-50">
+                          <SelectItem value="book1" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
+                          <SelectItem value="book2" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
+                          <SelectItem value="book3" className="text-[rgb(178,92,27)]">sunan an-Nasa'i</SelectItem>
+                          <SelectItem value="book4" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
+                          <SelectItem value="book5" className="text-[rgb(178,92,27)]">Jami'at-Tirmidhi</SelectItem>
+                          <SelectItem value="book6" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
+                        <SelectTrigger className="bg-input border-border">
+                          <SelectValue placeholder="Author's Name" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover z-50">
+                          <SelectItem value="author1">Imam al-Bukhaari</SelectItem>
+                          <SelectItem value="author2">Imam Muslim</SelectItem>
+                          <SelectItem value="author3">Imam Abu Dawood</SelectItem>
+                          <SelectItem value="author4">Imam al-Tirmidhi</SelectItem>
+                          <SelectItem value="author5">Imam al-Nasaa'i</SelectItem>
+                          <SelectItem value="author6">Imam Ibn Maajah</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
+                        <SelectTrigger className="bg-input border-border">
+                          <SelectValue placeholder="Narrator's Names" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover z-50 max-h-[300px]">
+                          <SelectItem value="narrator1" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator2" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator3" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
+                          <SelectItem value="narrator4" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator5" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator6" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator7" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator8">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator9">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator10">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator11">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator12">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator13">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
+                          <SelectItem value="narrator14">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator15">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator16">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator17">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator18">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="narrator19" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
+                          <SelectItem value="narrator20" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
+                          <SelectItem value="narrator21" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* AI Search Toggle */}
+                    <div
+                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors"
+                      style={{ backgroundColor: isAiSearch ? 'rgba(16, 185, 129, 0.1)' : 'transparent', border: isAiSearch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}
+                      onClick={() => setIsAiSearch(!isAiSearch)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isAiSearch}
+                        onChange={() => setIsAiSearch(!isAiSearch)}
+                        className="w-4 h-4 accent-emerald-500"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-medium text-sm">Search with Agentic AI</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-7">Get intelligent, summarized answers powered by AI</p>
+                    </div>
+
+                    <Button
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+                      onClick={handleSearch}
+                    >
+                      {isAiSearch ? (
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          AI Search Hadiths
+                        </div>
+                      ) : (
+                        'Search Hadiths'
+                      )}
+                    </Button>
                   </div>
-
-                  <div className="space-y-3">
-                    <Select value={selectedBook} onValueChange={handleBookSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Book Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="book1" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                        <SelectItem value="book2" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                        <SelectItem value="book3" className="text-[rgb(178,92,27)]">sunan an-Nasa'i</SelectItem>
-                        <SelectItem value="book4" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                        <SelectItem value="book5" className="text-[rgb(178,92,27)]">Jami'at-Tirmidhi</SelectItem>
-                        <SelectItem value="book6" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Author's Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="author1">Imam al-Bukhaari</SelectItem>
-                        <SelectItem value="author2">Imam Muslim</SelectItem>
-                        <SelectItem value="author3">Imam Abu Dawood</SelectItem>
-                        <SelectItem value="author4">Imam al-Tirmidhi</SelectItem>
-                        <SelectItem value="author5">Imam al-Nasaa'i</SelectItem>
-                        <SelectItem value="author6">Imam Ibn Maajah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Narrator's Names" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50 max-h-[300px]">
-                        <SelectItem value="narrator1" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator2" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator3" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator4" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator5" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator6" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator7" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator8">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator9">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator10">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator11">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator12">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator13">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator14">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator15">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator16">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator17">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator18">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator19" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                        <SelectItem value="narrator20" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                        <SelectItem value="narrator21" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button 
-                    className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-                    onClick={handleSearch}
-                  >
-                    Search Hadiths
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          {/* Daily Hadith Section */}
-          <Card className="bg-card shadow-lg mt-8">
+                </CardContent>
+              </Card>
+              {/* Daily Hadith Section */}
+              <Card className="bg-card shadow-lg mt-8">
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
                       <CardTitle>Daily Hadith</CardTitle>
                       <CardDescription>Practice reciting and memorizing this hadith</CardDescription>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={handleNewHadith}
                       disabled={loading}
                     >
@@ -504,9 +554,9 @@ const Beginner = () => {
                   ) : error ? (
                     <div className="text-center text-destructive p-4">
                       {error}
-                      <Button 
-                        variant="ghost" 
-                        className="mt-2" 
+                      <Button
+                        variant="ghost"
+                        className="mt-2"
                         onClick={loadRandomHadith}
                       >
                         Try Again
@@ -524,11 +574,12 @@ const Beginner = () => {
                         <p className="text-foreground">{hadith.english.text}</p>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Reference: Book {hadith.reference.book}, Hadith {hadith.reference.hadith}
+                        {hadith.bookName && <span className="font-semibold">{hadith.bookName} • </span>}
+                        Reference: {hadith.chapter ? hadith.chapter + ' • ' : ''}Hadith {hadith.reference.hadith}
                       </div>
                       <div className="flex justify-end">
-                        <Button 
-                          variant="secondary" 
+                        <Button
+                          variant="secondary"
                           size="sm"
                           onClick={() => handleSaveHadith(hadith)}
                           disabled={savedHadiths.some(h => h.id === hadith.id)}
@@ -620,7 +671,7 @@ const Beginner = () => {
               ].map((book) => (
                 <Card key={book.name} className="bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
                   <CardContent className="p-6 flex flex-col h-full">
-                    <h3 
+                    <h3
                       className="text-xl font-semibold text-card-foreground mb-2 cursor-pointer hover:text-accent"
                       onClick={() => handleExplore(book.name)}
                     >
@@ -629,16 +680,16 @@ const Beginner = () => {
                     <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
                     <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
                     <div className="flex gap-2 mt-auto">
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         className="flex-1"
                         onClick={() => handleExplore(book.name)}
                       >
                         Explore
                       </Button>
-                      <ShareDialog 
-                        bookName={book.name} 
+                      <ShareDialog
+                        bookName={book.name}
                         bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
                       />
                     </div>
@@ -648,8 +699,8 @@ const Beginner = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 };
 

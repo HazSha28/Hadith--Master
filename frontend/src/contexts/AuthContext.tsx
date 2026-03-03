@@ -1,24 +1,34 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  UserCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+import {
+  User,
+  UserCredential,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  updateProfile
 } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
-import { createUserData, updateLastLogin } from '../services/userService';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../firebase';
+import { createUserData, updateLastLogin, UserData } from '../services/userService';
+
+// Unified UserProfile type (merging UserProfile and UserData)
+export interface UserProfile extends UserData {
+  uid: string;
+  email: string | null;
+  fullName: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
+  profile: UserProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<UserCredential>;
-  signUp: (email: string, password: string) => Promise<UserCredential>;
+  signUp: (email: string, password: string, fullName: string) => Promise<UserCredential>;
   signInWithGoogle: () => Promise<UserCredential>;
   signOut: () => Promise<void>;
 }
@@ -27,6 +37,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Initialize auth persistence
@@ -38,94 +49,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error setting auth persistence:', error);
       }
     };
-    
+
     initializeAuth();
   }, []);
 
-  // Sign in with email and password
-  const signIn = async (email: string, password: string) => {
-    console.log('Attempting sign in with:', email);
+  // Fetch or create user profile
+  const fetchProfile = async (firebaseUser: User) => {
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Sign in successful:', result.user.uid);
-      
-      // Update last login time
-      await updateLastLogin(result.user.uid);
-      
-      return result;
-    } catch (error: any) {
-      console.error('Sign in failed:', error.code, error.message);
-      throw error;
-    }
-  };
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      let snap = await getDoc(userRef);
 
-  // Sign up with email and password
-  const signUp = async (email: string, password: string) => {
-    console.log('Attempting sign up with:', email);
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('Sign up successful:', result.user.uid);
-      
-      // Create user data in Firestore
-      await createUserData(result.user);
-      
-      return result;
-    } catch (error: any) {
-      console.error('Sign up failed:', error.code, error.message);
-      
-      // Handle specific error cases
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('This email is already registered. Please try logging in instead.');
-      } else if (error.code === 'auth/weak-password') {
-        throw new Error('Password should be at least 6 characters long.');
-      } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Please enter a valid email address.');
+      if (!snap.exists()) {
+        // Create profile if it doesn't exist
+        const newProfile: UserData = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || '',
+          createdAt: new Date(),
+          lastLoginAt: new Date(),
+          status: 'pending',
+          role: 'user',
+          preferences: { theme: 'light', notifications: true }
+        };
+        await setDoc(userRef, newProfile);
+        snap = await getDoc(userRef);
       } else {
-        throw error;
+        // Update last login
+        await updateLastLogin(firebaseUser.uid);
       }
+
+      const data = snap.data() as UserData;
+      setProfile({
+        ...data,
+        fullName: data.displayName || ''
+      } as UserProfile);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
     }
   };
 
-  // Sign in with Google
-  const signInWithGoogle = async () => {
-    console.log('Attempting sign in with Google');
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      console.log('Sign in with Google successful:', result.user.uid);
-      
-      // Check if user data exists, create if not
-      try {
-        await createUserData(result.user);
-      } catch (error) {
-        // User data might already exist, just update last login
-        await updateLastLogin(result.user.uid);
-      }
-      
-      return result;
-    } catch (error: any) {
-      console.error('Sign in with Google failed:', error.code, error.message);
-      throw error;
-    }
-  };
-
-  // Sign out
-  const signOut = () => {
-    return firebaseSignOut(auth);
-  };
-
-  // Set up auth state listener
+  // Auth state listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        await fetchProfile(user);
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
+  // Sign in
+  const signIn = async (email: string, password: string) => {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return result;
+  };
+
+  // Sign up
+  const signUp = async (email: string, password: string, fullName: string) => {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(result.user, { displayName: fullName });
+
+    // Initial profile creation is handled by the onAuthStateChanged listener -> fetchProfile
+    // but we can also trigger it explicitly here if needed.
+    return result;
+  };
+
+  // Google Sign In
+  const signInWithGoogle = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result;
+  };
+
+  // Sign out
+  const signOut = async () => {
+    await firebaseSignOut(auth);
+    setProfile(null);
+  };
+
   const value = {
     currentUser,
+    profile,
     loading,
     signIn,
     signUp,

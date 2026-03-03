@@ -16,7 +16,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
+import { isAdminEmail } from "@/config/adminConfig";
 import { Notifications } from "./Notifications";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -26,14 +27,15 @@ export const Header = () => {
   const location = useLocation();
   const currentPath = location.pathname;
   const [showMessages, setShowMessages] = useState(false);
-  const { user, logout } = useAuth();
+  const { currentUser, profile, signOut } = useAuth();
+  const isUserAdmin = profile?.role === 'admin' || isAdminEmail(currentUser?.email);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
   const handleSignOut = async () => {
     try {
-      await logout();
+      await signOut();
       toast({
         title: "Success",
         description: "Logged out successfully",
@@ -97,10 +99,10 @@ export const Header = () => {
             {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
-          {user && <Notifications />}
+          {currentUser && <Notifications />}
 
           {/* Community Chat */}
-          {user && (
+          {currentUser && (
             <Sheet open={showMessages} onOpenChange={setShowMessages}>
               <SheetTrigger asChild>
                 <Button
@@ -143,8 +145,20 @@ export const Header = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-popover">
-              {user ? (
+              {currentUser ? (
                 <>
+                  {isUserAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/panel" className="cursor-pointer text-red-600 font-bold">
+                        Admin Panel
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer">
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                     Logout
                   </DropdownMenuItem>

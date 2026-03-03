@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Search, 
-  X, 
-  Clock, 
+import {
+  Search,
+  X,
+  Clock,
   TrendingUp,
   BookOpen,
   User,
@@ -46,20 +46,21 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
   const [filters, setFilters] = useState<SearchFilters>({});
+  const [isAiSearch, setIsAiSearch] = useState(false);
 
   // Sample data - in real app, this would come from API
   const sampleBooks = [
-    "Sahih al-Bukhari", "Sahih Muslim", "Sunan Abu Dawud", 
+    "Sahih al-Bukhari", "Sahih Muslim", "Sunan Abu Dawud",
     "Jami' at-Tirmidhi", "Sunan an-Nasa'i", "Sunan Ibn Majah"
   ];
-  
+
   const sampleNarrators = [
     "Abu Hurairah", "Abdullah ibn Abbas", "Aisha", "Abdullah ibn Umar",
     "Jabir ibn Abdullah", "Anas ibn Malik", "Umar ibn al-Khattab"
   ];
-  
+
   const sampleTopics = [
-    "Prayer", "Faith", "Charity", "Fasting", "Pilgrimage", 
+    "Prayer", "Faith", "Charity", "Fasting", "Pilgrimage",
     "Manners", "Knowledge", "Paradise", "Character"
   ];
 
@@ -73,7 +74,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     if (history) {
       setSearchHistory(JSON.parse(history));
     }
-    
+
     // Set trending searches
     setTrendingSearches(trendingTerms);
   }, []);
@@ -148,18 +149,18 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   const handleSearch = (query?: string) => {
     const finalQuery = query || searchTerm;
-    
+
     if (finalQuery.trim()) {
       // Add to search history
       const newHistory = [finalQuery, ...searchHistory.filter(item => item !== finalQuery)].slice(0, 10);
       setSearchHistory(newHistory);
       localStorage.setItem('searchHistory', JSON.stringify(newHistory));
-      
+
       setShowSuggestions(false);
-      
+
       // Call the search callback with query and filters
-      onSearch(finalQuery, filters);
-      
+      onSearch(finalQuery, { ...filters, isAiSearch });
+
       toast({
         title: 'Search Complete',
         description: `Searching for "${finalQuery}"...`,
@@ -170,7 +171,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
     setSearchTerm(suggestion.text);
     setShowSuggestions(false);
-    
+
     // If it's a specific type, add to filters
     const newFilters = { ...filters };
     if (suggestion.type === 'book') {
@@ -180,7 +181,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     } else if (suggestion.type === 'topic') {
       newFilters.topic = suggestion.text;
     }
-    
+
     setFilters(newFilters);
     handleSearch(suggestion.text);
   };
@@ -250,6 +251,23 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             <X className="h-4 w-4" />
           </Button>
         )}
+      </div>
+
+      {/* AI Search Toggle */}
+      <div className="flex items-center gap-2 mt-2 px-1">
+        <input
+          type="checkbox"
+          id="ai-search-toggle"
+          checked={isAiSearch}
+          onChange={(e) => setIsAiSearch(e.target.checked)}
+          className="w-4 h-4 rounded text-accent focus:ring-accent"
+        />
+        <label htmlFor="ai-search-toggle" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+          <span className={isAiSearch ? "text-accent" : "text-muted-foreground"}>
+            Search with Agentic AI (OpenAI)
+          </span>
+          {isAiSearch && <Badge variant="secondary" className="text-[10px] h-4">Beta</Badge>}
+        </label>
       </div>
 
       {/* Search Suggestions Dropdown */}

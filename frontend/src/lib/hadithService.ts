@@ -44,26 +44,14 @@ const headers = {
 
 export async function fetchRandomHadith(): Promise<Hadith> {
   try {
-    // First, get a random book
-    const booksResponse = await fetch(`${API_BASE_URL}/books`, { headers });
-    if (!booksResponse.ok) throw new Error('Failed to fetch books');
-    
-    const { data: books } = await booksResponse.json();
-    const randomBook = books[Math.floor(Math.random() * books.length)];
-    
-    // Then get a random hadith from that book
-    const hadithResponse = await fetch(
-      `${API_BASE_URL}/books/${randomBook.id}/hadiths?limit=1&offset=${Math.floor(Math.random() * 100)}`,
-      { headers }
-    );
-    
-    if (!hadithResponse.ok) throw new Error('Failed to fetch hadith');
-    
-    const { data } = await hadithResponse.json();
+    const response = await fetch(`${API_BASE_URL}/api/hadith/random?count=1`);
+    if (!response.ok) throw new Error('Failed to fetch from backend');
+
+    const { data } = await response.json();
     const hadith = data[0];
-    
+
     return {
-      id: hadith.id,
+      id: parseInt(hadith.id),
       arabic: hadith.arabic,
       english: {
         narrator: hadith.english.narrator,
@@ -71,14 +59,14 @@ export async function fetchRandomHadith(): Promise<Hadith> {
       },
       reference: {
         book: hadith.reference.book,
-        hadith: hadith.hadithNumber
+        hadith: hadith.reference.hadith
       },
-      bookName: randomBook.name,
-      chapter: hadith.chapter?.english
+      bookName: hadith.book,
+      chapter: hadith.chapter
     };
   } catch (error) {
-    console.error('Error fetching random hadith:', error);
-    
+    console.error('Error fetching random hadith from backend:', error);
+
     // Fallback to comprehensive sample hadiths when API fails
     const sampleHadiths: Hadith[] = [
       // SAHIH AL-BUKHARI
@@ -138,7 +126,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         bookName: 'Sahih al-Bukhari',
         chapter: 'The Book of Fasting'
       },
-      
+
       // SAHIH MUSLIM
       {
         id: 5,
@@ -182,7 +170,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         bookName: 'Sahih Muslim',
         chapter: 'The Book of Prayer'
       },
-      
+
       // SUNAN ABU DAWUD
       {
         id: 8,
@@ -212,7 +200,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         bookName: 'Sunan Abu Dawud',
         chapter: 'The Book of Manners'
       },
-      
+
       // JAMI' AT-TIRMIDHI
       {
         id: 10,
@@ -256,7 +244,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         bookName: 'Jami\' at-Tirmidhi',
         chapter: 'The Book of Zuhd'
       },
-      
+
       // SUNAN AN-NASA'I
       {
         id: 13,
@@ -300,7 +288,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         bookName: 'Sunan an-Nasa\'i',
         chapter: 'The Book of Charity'
       },
-      
+
       // SUNAN IBN MAJAH
       {
         id: 16,
@@ -373,7 +361,7 @@ export async function fetchRandomHadith(): Promise<Hadith> {
         chapter: 'The Book of Manners'
       }
     ];
-    
+
     // Return a random sample hadith
     return sampleHadiths[Math.floor(Math.random() * sampleHadiths.length)];
   }
@@ -385,15 +373,15 @@ export async function searchHadiths(query: string, bookId?: string): Promise<Had
     if (bookId) {
       url = `${API_BASE_URL}/books/${bookId}/hadiths?query=${encodeURIComponent(query)}`;
     }
-    
+
     const response = await fetch(url, { headers });
-    
+
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
     }
-    
+
     const data: SunnahApiResponse = await response.json();
-    
+
     return data.hadiths.map(hadith => ({
       id: hadith.id,
       arabic: hadith.arabic,
@@ -415,18 +403,18 @@ export async function searchHadiths(query: string, bookId?: string): Promise<Had
 // Test function to verify API connection
 export async function testApiConnection(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/books`, { 
+    const response = await fetch(`${API_BASE_URL}/books`, {
       headers: {
         'Content-Type': 'application/json',
         ...(API_KEY && { 'X-API-Key': API_KEY })
       }
     });
-    
+
     if (!response.ok) {
       console.error('API Connection Test Failed:', await response.text());
       return false;
     }
-    
+
     console.log('API Connection Test: Success!');
     return true;
   } catch (error) {

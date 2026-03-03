@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Loader2, 
-  BookOpen, 
-  Mic, 
-  Search, 
-  Bookmark, 
-  CheckCircle2, 
+import {
+  Loader2,
+  BookOpen,
+  Mic,
+  Search,
+  Bookmark,
+  CheckCircle2,
   RefreshCw,
   Trash2,
   Users,
-  Heart
+  Heart,
+  Sparkles
 } from "lucide-react";
 
 import { Header } from "@/components/Header";
@@ -62,7 +63,8 @@ const Advanced = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'recite' | 'saved'>('search');
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
-  
+  const [isAiSearch, setIsAiSearch] = useState(true);
+
   // Hooks
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -136,7 +138,10 @@ const Advanced = () => {
       return;
     }
 
-    navigate(`/search-results?q=${encodeURIComponent(query)}`);
+    const params = new URLSearchParams();
+    params.set('q', query);
+    if (isAiSearch) params.set('ai', 'true');
+    navigate(`/search-results?${params.toString()}`);
   };
 
   const handleBookSelect = (value: string) => {
@@ -164,7 +169,7 @@ const Advanced = () => {
       navigate('/login');
       return;
     }
-    
+
     setSavedHadiths(prev => {
       // Check if hadith is already saved
       const exists = prev.some(h => h.id === hadithToSave.id);
@@ -175,7 +180,7 @@ const Advanced = () => {
         });
         return prev;
       }
-      
+
       const updated = [...prev, { ...hadithToSave, status: 'saved' as const }];
       toast({
         title: 'Hadith Saved',
@@ -194,7 +199,7 @@ const Advanced = () => {
       }
       return updated;
     });
-    
+
     toast({
       title: 'Removed',
       description: 'Hadith has been removed from your collection.',
@@ -202,23 +207,24 @@ const Advanced = () => {
   };
 
   const handleExplore = (bookName: string) => {
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please login to explore books",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
+    // Convert book name to URL-friendly slug
+    const bookSlugs: Record<string, string> = {
+      'Sahih Bukhari': 'sahih-bukhari',
+      'Sahih Muslim': 'sahih-muslim',
+      'Sunan Abu Dawud': 'sunan-abu-dawud',
+      'Jami\' at-Tirmidhi': 'jami-at-tirmidhi',
+      'Sunan an-Nasa\'i': 'sunan-an-nasai',
+      'Sunan Ibn Majah': 'sunan-ibn-majah'
+    };
 
-    navigate(`/search-results?q=${encodeURIComponent(bookName)}`);
+    const slug = bookSlugs[bookName] || bookName.toLowerCase().replace(/\s+/g, '-');
+    navigate(`/collections/${slug}`);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground text-center mb-4">
@@ -350,11 +356,39 @@ const Advanced = () => {
                     </Select>
                   </div>
 
-                  <Button 
+                  {/* AI Search Toggle */}
+                  <div
+                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors"
+                    style={{ backgroundColor: isAiSearch ? 'rgba(16, 185, 129, 0.1)' : 'transparent', border: isAiSearch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}
+                    onClick={() => setIsAiSearch(!isAiSearch)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isAiSearch}
+                      onChange={() => setIsAiSearch(!isAiSearch)}
+                      className="w-4 h-4 accent-emerald-500"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-medium text-sm">Search with Agentic AI</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-7">Get intelligent, summarized answers powered by AI</p>
+                    </div>
+                  </div>
+
+                  <Button
                     className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                     onClick={handleSearch}
                   >
-                    Search
+                    {isAiSearch ? (
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        AI Search Hadiths
+                      </div>
+                    ) : (
+                      'Search Hadiths'
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -413,7 +447,7 @@ const Advanced = () => {
                             </p>
                             <p className="text-foreground">{savedHadith.english.text}</p>
                             <div className="text-sm text-muted-foreground">
-                              Reference: {savedHadith.bookName || `Book ${savedHadith.reference.book}`}, 
+                              Reference: {savedHadith.bookName || `Book ${savedHadith.reference.book}`},
                               Hadith {savedHadith.reference.hadith}
                               {savedHadith.chapter && ` • ${savedHadith.chapter}`}
                             </div>
@@ -449,9 +483,9 @@ const Advanced = () => {
                     Practice reciting and memorizing this hadith
                   </CardDescription>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleNewHadith}
                   disabled={loading}
                 >
@@ -474,9 +508,9 @@ const Advanced = () => {
               ) : error ? (
                 <div className="text-center text-destructive p-4">
                   {error}
-                  <Button 
-                    variant="ghost" 
-                    className="mt-2" 
+                  <Button
+                    variant="ghost"
+                    className="mt-2"
                     onClick={loadPracticeHadith}
                   >
                     Try Again
@@ -494,11 +528,12 @@ const Advanced = () => {
                     <p className="text-foreground">{hadith.english.text}</p>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Reference: Book {hadith.reference.book}, Hadith {hadith.reference.hadith}
+                    {hadith.bookName && <span className="font-semibold">{hadith.bookName} • </span>}
+                    Reference: {hadith.chapter ? hadith.chapter + ' • ' : ''}Hadith {hadith.reference.hadith}
                   </div>
                   <div className="flex justify-end">
-                    <Button 
-                      variant="secondary" 
+                    <Button
+                      variant="secondary"
                       size="sm"
                       onClick={() => handleSaveHadith(hadith)}
                       disabled={savedHadiths.some(h => h.id === hadith.id)}
@@ -537,22 +572,27 @@ const Advanced = () => {
               ].map((book) => (
                 <Card key={book.name} className="bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
                   <CardContent className="p-6 flex flex-col h-full">
-                    <h3 className="text-xl font-semibold text-card-foreground mb-2">{book.name}</h3>
+                    <h3
+                      className="text-xl font-semibold text-card-foreground mb-2 cursor-pointer hover:text-accent"
+                      onClick={() => handleExplore(book.name)}
+                    >
+                      {book.name}
+                    </h3>
                     <p className="text-muted-foreground text-sm mb-3 flex-grow">{book.desc}</p>
                     <p className="text-accent text-sm font-medium mb-4">{book.hadiths}</p>
                     <div className="flex gap-2 mt-auto">
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         className="flex-1"
                         onClick={() => handleExplore(book.name)}
                       >
                         Explore
                       </Button>
-                      <ShareDialog 
-                          bookName={book.name} 
-                          bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
-                        />
+                      <ShareDialog
+                        bookName={book.name}
+                        bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
+                      />
                     </div>
                   </CardContent>
                 </Card>

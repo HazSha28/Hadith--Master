@@ -4,19 +4,21 @@
 export const ADMIN_CONFIG = {
   // Add your UID here (get it from Firebase Auth after logging in)
   ADMIN_UIDS: [
-     "9EQwVF9srSQkLd5LWsLmdaPQePd2",
-     "XncNQ5wOQ3VzkEoK0AYuO8j4ngG2"
+    "9EQwVF9srSQkLd5LWsLmdaPQePd2",
+    "XncNQ5wOQ3VzkEoK0AYuO8j4ngG2"
   ],
-  
-  // Auto-approve these email domains (optional)
-  APPROVED_DOMAINS: [
+
+  ADMIN_EMAILS: [
     "tohazsha@gmail.com",
-     "macsabs@gmail.com"
+    "macsabs@gmail.com"
   ],
-  
+
+  // Auto-approve these email domains (optional)
+  APPROVED_DOMAINS: [],
+
   // Require admin approval for these roles
   ROLES_REQUIRING_APPROVAL: ['scholar', 'admin'],
-  
+
   // Comment moderation settings
   COMMENT_SETTINGS: {
     AUTO_APPROVE_TRUSTED_USERS: true,
@@ -25,13 +27,13 @@ export const ADMIN_CONFIG = {
   }
 };
 
-// Helper function to check if email is from approved domain
-export const isApprovedDomain = (email: string): boolean => {
-  const domain = email.split('@')[1]?.toLowerCase();
-  return ADMIN_CONFIG.APPROVED_DOMAINS.includes(domain);
+// Helper function to check if email is an admin email
+export const isAdminEmail = (email: string | null | undefined): boolean => {
+  if (!email) return false;
+  return ADMIN_CONFIG.ADMIN_EMAILS.includes(email.toLowerCase());
 };
 
-// Helper function to get admin status
-export const getAdminStatus = (uid: string): boolean => {
-  return ADMIN_CONFIG.ADMIN_UIDS.includes(uid);
+// Helper function to get admin status by UID or Email
+export const getAdminStatus = (uid: string, email?: string | null): boolean => {
+  return ADMIN_CONFIG.ADMIN_UIDS.includes(uid) || isAdminEmail(email);
 };

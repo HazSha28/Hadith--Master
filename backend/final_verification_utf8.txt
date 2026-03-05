@@ -1,0 +1,30 @@
+﻿[dotenv@17.3.1] injecting env (8) from .env -- tip: ΓÜÖ∩╕Å  suppress all logs with { quiet: true }
+--- Testing Gemini ---
+Gemini: Sending prompt...
+node : Gemini Error Type: Error
+At line:1 char:1
++ node reproduce_ai_error.js > 
+final_verification.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+NotSpecified:     (Gemini Error Type: 
+Error:String) [],     RemoteException
+    + FullyQualifiedErrorId : 
+NativeCommand    Error
+ 
+Gemini Error Message: [GoogleGenerativeAI 
+Error]: Error fetching from https://generat
+ivelanguage.googleapis.com/v1beta/models/ge
+mini-1.5-flash-latest:generateContent: 
+[404 Not Found] 
+models/gemini-1.5-flash-latest is not 
+found for API version v1beta, or is not 
+supported for generateContent. Call 
+ListModels to see the list of available 
+models and their supported methods.
+Gemini Error Status: 404
+Gemini Error StatusText: Not Found
+
+--- Testing Groq ---
+Groq Response success: Regarding your question about honesty, in Islam, **honesty** is considered a fundamental virtue and ...

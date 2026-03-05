@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, Loader2, Share2, Filter } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,35 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { HadithSearchBar } from "@/components/HadithSearchBar";
 import { searchHadiths, searchHadithsAi, getBooks, getCategories, Hadith } from "@/lib/hadithApiService";
+
+const highlightText = (text: string, query: string) => {
+  if (!query || typeof text !== 'string') return text;
+
+  // Split query by spaces or + signs, filtering out short words
+  const terms = query.trim().split(/[\s\+]+/).filter(t => t.length > 1);
+  if (terms.length === 0) return text;
+
+  // Escape regex specials
+  const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+
+  const parts = text.split(regex);
+
+  return parts.map((part, i) => {
+    const isMatch = terms.some(term => term.toLowerCase() === part.toLowerCase());
+    if (isMatch) {
+      return (
+        <mark
+          key={i}
+          className="bg-emerald-600/40 text-emerald-900 dark:bg-emerald-500/40 dark:text-emerald-100 px-1 rounded-sm font-medium"
+        >
+          {part}
+        </mark>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
 
 const SearchResults = () => {
   const location = useLocation();
@@ -34,12 +65,21 @@ const SearchResults = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedBook, setSelectedBook] = useState(bookParam || "");
   const [selectedCategory, setSelectedCategory] = useState(categoryParam || "");
+  const [selectedNarrator, setSelectedNarrator] = useState("");
+  const [selectedAuthor, setSelectedAuthor] = useState("");
+  const [selectedCharacters, setSelectedCharacters] = useState("");
+  const [selectedGrade, setSelectedGrade] = useState("");
 
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [aiSources, setAiSources] = useState<any[]>([]);
   const [isAiMode, setIsAiMode] = useState(aiSearchParam);
+  const { user } = useAuth();
+  const { toast: uiToast } = useToast();
+  const [savedHadiths, setSavedHadiths] = useState<any[]>([]);
+  const [detailHadith, setDetailHadith] = useState<Hadith | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
-  // Load books and categories on mount
+  // Load books, categories and saved hadiths on mount
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -49,8 +89,14 @@ const SearchResults = () => {
         ]);
         setBooks(booksData);
         setCategories(categoriesData);
+
+        // Load saved hadiths
+        const saved = localStorage.getItem('savedHadiths');
+        if (saved) {
+          setSavedHadiths(JSON.parse(saved));
+        }
       } catch (error) {
-        console.error('Error loading filter data:', error);
+        console.error('Error loading initial data:', error);
       }
     };
     loadData();
@@ -58,7 +104,9 @@ const SearchResults = () => {
 
   useEffect(() => {
     setSearchText(searchQuery);
-  }, [searchQuery]);
+    setSelectedBook(bookParam || "");
+    setSelectedCategory(categoryParam || "");
+  }, [searchQuery, bookParam, categoryParam]);
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -84,9 +132,17 @@ const SearchResults = () => {
         };
 
         if (isAiMode) {
+          // Always skip the AI summary to just fetch results as requested by user
+          const shouldSkipSummary = true;
+
           const apiResults = await searchHadithsAi(q, {
             book: selectedBook || undefined,
-            category: selectedCategory || undefined
+            category: selectedCategory || undefined,
+            narrator: selectedNarrator || undefined,
+            author: selectedAuthor || undefined,
+            characters: selectedCharacters || undefined,
+            grade: selectedGrade || undefined,
+            skipSummary: shouldSkipSummary
           });
 
           if (!cancelled && apiResults.success) {
@@ -101,7 +157,10 @@ const SearchResults = () => {
               reference: { book: s.book_name, hadith: s.hadith_number },
               grade: s.grade,
               chapter: s.kitab,
-              category: s.bab
+              category: s.bab,
+              isnad: s.isnad,
+              matn: s.matn,
+              tags: s.themes || []
             } as any)));
           }
         } else {
@@ -145,6 +204,43 @@ const SearchResults = () => {
       url
     });
     setShareDialogOpen(true);
+  };
+
+  const handleSaveHadith = (hadithToSave: any) => {
+    if (!user) {
+      uiToast({
+        title: 'Login Required',
+        description: 'Please login to save hadiths',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
+    setSavedHadiths(prev => {
+      const exists = prev.some(h => h.id === hadithToSave.id);
+      if (exists) {
+        uiToast({
+          title: 'Already Saved',
+          description: 'This hadith is already in your saved collection.',
+        });
+        return prev;
+      }
+
+      const updated = [...prev, { ...hadithToSave, status: 'saved' as const }];
+      localStorage.setItem('savedHadiths', JSON.stringify(updated));
+
+      uiToast({
+        title: 'Hadith Saved',
+        description: 'The hadith has been added to your collection.',
+      });
+      return updated;
+    });
+  };
+
+  const handleViewDetails = (hadith: any) => {
+    setDetailHadith(hadith);
+    setDetailDialogOpen(true);
   };
 
   const copyToClipboard = () => {
@@ -260,6 +356,10 @@ const SearchResults = () => {
                       onClick={() => {
                         setSelectedBook('');
                         setSelectedCategory('');
+                        setSelectedNarrator('');
+                        setSelectedAuthor('');
+                        setSelectedCharacters('');
+                        setSelectedGrade('');
                       }}
                     >
                       Clear Filters
@@ -267,6 +367,53 @@ const SearchResults = () => {
                     <Button onClick={handleSearch}>
                       Apply Filters
                     </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Narrator</label>
+                      <input
+                        type="text"
+                        value={selectedNarrator}
+                        onChange={(e) => setSelectedNarrator(e.target.value)}
+                        placeholder="e.g. Abu Hurairah"
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Author/Compiler</label>
+                      <input
+                        type="text"
+                        value={selectedAuthor}
+                        onChange={(e) => setSelectedAuthor(e.target.value)}
+                        placeholder="e.g. Imam Bukhari"
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Character Names</label>
+                      <input
+                        type="text"
+                        value={selectedCharacters}
+                        onChange={(e) => setSelectedCharacters(e.target.value)}
+                        placeholder="e.g. Abu Bakr"
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Grading</label>
+                      <select
+                        value={selectedGrade}
+                        onChange={(e) => setSelectedGrade(e.target.value)}
+                        className="w-full p-2 border rounded-md bg-background"
+                      >
+                        <option value="">All Grades</option>
+                        <option value="Sahih">Sahih</option>
+                        <option value="Hasan">Hasan</option>
+                        <option value="Da'if">Da'if</option>
+                        <option value="Maudu">Maudu</option>
+                      </select>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -318,7 +465,7 @@ const SearchResults = () => {
                           className="text-sm text-muted-foreground cursor-pointer hover:text-accent"
                           onClick={() => navigate(`/search-results?q=${encodeURIComponent(result.english?.narrator || "")}`)}
                         >
-                          Narrated by {result.english?.narrator || "Unknown"}
+                          Narrated by {highlightText(result.english?.narrator || "Unknown", searchQuery)}
                         </p>
                       </div>
                     </div>
@@ -342,17 +489,26 @@ const SearchResults = () => {
 
                     <div>
                       <p className="text-card-foreground leading-relaxed">
-                        {result.english.text}
+                        {highlightText(result.english?.text || "", searchQuery)}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-border flex gap-2">
-                    <Button variant="secondary" size="sm">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleViewDetails(result)}
+                    >
                       View Details
                     </Button>
-                    <Button variant="secondary" size="sm">
-                      Save to Collection
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleSaveHadith(result)}
+                      disabled={savedHadiths.some(h => h.id === result.id)}
+                    >
+                      {savedHadiths.some(h => h.id === result.id) ? 'Saved' : 'Save to Collection'}
                     </Button>
                   </div>
                 </CardContent>
@@ -376,6 +532,81 @@ const SearchResults = () => {
         </div>
       </main>
 
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-accent" />
+              {detailHadith?.book} - #{detailHadith?.reference?.hadith || detailHadith?.id}
+            </DialogTitle>
+            <DialogDescription>
+              Details and Scholarly Information
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailHadith && (
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Arabic Text</h4>
+                <div className="bg-muted/50 p-6 rounded-lg">
+                  <p className="text-right text-2xl font-arabic leading-loose text-card-foreground" dir="rtl">
+                    {detailHadith.arabic}
+                  </p>
+                </div>
+              </div>
+
+              {detailHadith.isnad && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Chain of Narrators (Isnad)</h4>
+                  <p className="text-sm italic leading-relaxed text-foreground bg-muted/30 p-4 rounded border-l-4 border-accent">
+                    {detailHadith.isnad}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">English Translation</h4>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-accent">
+                    Narrated by {highlightText(detailHadith.english?.narrator || "Unknown", searchQuery)}
+                  </p>
+                  <p className="text-foreground leading-relaxed">
+                    {highlightText(detailHadith.english?.text || "", searchQuery)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Grade</h4>
+                  <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border">
+                    {detailHadith.grade || detailHadith.difficulty || "Unknown"}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tags</h4>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {detailHadith.tags?.map((tag, i) => (
+                      <span key={i} className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
+                        {tag}
+                      </span>
+                    )) || "None"}
+                  </div>
+                </div>
+              </div>
+
+              {detailHadith.matn && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Scholarly Commentary (Sharh)</h4>
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                    {detailHadith.matn}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

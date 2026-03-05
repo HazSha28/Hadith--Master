@@ -25,6 +25,8 @@ interface SearchFilters {
   narrator?: string;
   author?: string;
   topic?: string;
+  isAiSearch?: boolean;
+  skipSummary?: boolean;
 }
 
 interface SearchSuggestion {
@@ -147,7 +149,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     return suggestions.slice(0, 8);
   };
 
-  const handleSearch = (query?: string) => {
+  const handleSearch = (query?: string, customFilters?: Partial<SearchFilters>) => {
     const finalQuery = query || searchTerm;
 
     if (finalQuery.trim()) {
@@ -159,7 +161,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       setShowSuggestions(false);
 
       // Call the search callback with query and filters
-      onSearch(finalQuery, { ...filters, isAiSearch });
+      onSearch(finalQuery, { ...filters, ...customFilters, isAiSearch });
 
       toast({
         title: 'Search Complete',
@@ -183,7 +185,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     }
 
     setFilters(newFilters);
-    handleSearch(suggestion.text);
+    handleSearch(suggestion.text, { skipSummary: true });
   };
 
   const clearSearch = () => {

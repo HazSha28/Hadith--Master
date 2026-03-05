@@ -22,6 +22,7 @@
   "license": "MIT",
   "description": "Backend API for Hadith Master application with comprehensive hadith data ingestion and RESTful API",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.6.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",

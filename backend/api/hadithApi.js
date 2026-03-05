@@ -37,8 +37,11 @@ const formatHadith = (row) => {
     book: row.book_name,
     chapter: row.kitab || '',
     category: row.bab || '',
-    difficulty: 'Medium', // Default or derived
+    difficulty: row.grade || 'Medium',
     tags: row.themes || [],
+    isnad: row.isnad || '',
+    matn: row.matn || '',
+    grade: row.grade || '',
     createdAt: row.created_at
   };
 };
@@ -77,9 +80,9 @@ router.get('/', async (req, res) => {
       argIndex++;
     }
     if (search) {
-      whereClauses.push(`(h.english_translation ILIKE $${argIndex} OR h.arabic_text ILIKE $${argIndex})`);
-      queryArgs.push(`%${search}%`);
-      argIndex++;
+      whereClauses.push(`(to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${argIndex}) OR h.english_translation ILIKE $${argIndex + 1})`);
+      queryArgs.push(search, `%${search}%`);
+      argIndex += 2;
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -253,20 +256,20 @@ router.get('/search', async (req, res) => {
     let queryArgs = [];
     let argIndex = 1;
 
-    // Use Postgres full-text search if possible, or ILIKE fallback
+    // Use Postgres plainto_tsquery for flexible natural language search
     whereClauses.push(`(to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${argIndex}) OR h.english_translation ILIKE $${argIndex + 1})`);
     queryArgs.push(query, `%${query}%`);
     argIndex += 2;
 
     if (book) {
-      whereClauses.push(`h.book_id = $${argIndex}`);
+      whereClauses.push(`(h.book_id = $${argIndex} OR b.name = $${argIndex})`);
       queryArgs.push(book);
       argIndex++;
     }
 
     if (category) {
-      whereClauses.push(`h.bab = $${argIndex}`);
-      queryArgs.push(category);
+      whereClauses.push(`h.bab ILIKE $${argIndex}`);
+      queryArgs.push(`%${category}%`);
       argIndex++;
     }
 

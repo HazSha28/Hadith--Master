@@ -15,7 +15,8 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Share2
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -137,17 +138,23 @@ const Beginner = () => {
 
   const handleBookSelect = (value: string) => {
     setSelectedBook(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleAuthorSelect = (value: string) => {
     setSelectedAuthor(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleNarratorSelect = (value: string) => {
     setSelectedNarrator(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleSaveHadith = (hadithToSave: Hadith) => {
@@ -224,14 +231,6 @@ const Beginner = () => {
               >
                 <Search className="mr-2 h-4 w-4" />
                 Search
-              </Button>
-              <Button
-                variant="ghost"
-                className="rounded-none border-b-2 border-transparent hover:border-primary"
-                onClick={() => navigate('/liked-hadiths')}
-              >
-                <Heart className="mr-2 h-4 w-4" />
-                Liked Hadiths
               </Button>
               <Button
                 variant="ghost"
@@ -433,12 +432,12 @@ const Beginner = () => {
                           <SelectValue placeholder="Book Name" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover z-50">
-                          <SelectItem value="book1" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                          <SelectItem value="book2" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                          <SelectItem value="book3" className="text-[rgb(178,92,27)]">sunan an-Nasa'i</SelectItem>
-                          <SelectItem value="book4" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                          <SelectItem value="book5" className="text-[rgb(178,92,27)]">Jami'at-Tirmidhi</SelectItem>
-                          <SelectItem value="book6" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
+                          <SelectItem value="Sahih al-Bukhari" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
+                          <SelectItem value="Sahih Muslim" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
+                          <SelectItem value="Sunan an-Nasa'i" className="text-[rgb(178,92,27)]">Sunan an-Nasa'i</SelectItem>
+                          <SelectItem value="Sunan Abi Dawud" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
+                          <SelectItem value="Jami' at-Tirmidhi" className="text-[rgb(178,92,27)]">Jami' at-Tirmidhi</SelectItem>
+                          <SelectItem value="Sunan Ibn Majah" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
                         </SelectContent>
                       </Select>
 
@@ -447,12 +446,12 @@ const Beginner = () => {
                           <SelectValue placeholder="Author's Name" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover z-50">
-                          <SelectItem value="author1">Imam al-Bukhaari</SelectItem>
-                          <SelectItem value="author2">Imam Muslim</SelectItem>
-                          <SelectItem value="author3">Imam Abu Dawood</SelectItem>
-                          <SelectItem value="author4">Imam al-Tirmidhi</SelectItem>
-                          <SelectItem value="author5">Imam al-Nasaa'i</SelectItem>
-                          <SelectItem value="author6">Imam Ibn Maajah</SelectItem>
+                          <SelectItem value="Imam al-Bukhari">Imam al-Bukhaari</SelectItem>
+                          <SelectItem value="Imam Muslim">Imam Muslim</SelectItem>
+                          <SelectItem value="Imam Abu Dawood">Imam Abu Dawood</SelectItem>
+                          <SelectItem value="Imam al-Tirmidhi">Imam al-Tirmidhi</SelectItem>
+                          <SelectItem value="Imam al-Nasaa'i">Imam al-Nasaa'i</SelectItem>
+                          <SelectItem value="Imam Ibn Maajah">Imam Ibn Maajah</SelectItem>
                         </SelectContent>
                       </Select>
 
@@ -461,27 +460,27 @@ const Beginner = () => {
                           <SelectValue placeholder="Narrator's Names" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover z-50 max-h-[300px]">
-                          <SelectItem value="narrator1" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator2" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator3" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                          <SelectItem value="narrator4" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator5" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator6" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator7" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator8">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator9">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator10">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator11">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator12">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator13">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                          <SelectItem value="narrator14">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator15">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator16">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator17">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator18">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="narrator19" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                          <SelectItem value="narrator20" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                          <SelectItem value="narrator21" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
+                          <SelectItem value="Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
+                          <SelectItem value="Abdullaah Ibn Umar (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Anas Ibn Maalik (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Alee Ibn Abee Taalib (radi-Allaahu 'anhu)">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Umar Ibn al-Khattaab (radi-Allaahu 'anhu)">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Umm Salamah (radi-Allaahu 'anhaa)">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
+                          <SelectItem value="Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
+                          <SelectItem value="Saalim Ibn Abdullaah Ibn Umar" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
+                          <SelectItem value="Urwah Ibn Zubair" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
+                          <SelectItem value="Sa'eed Ibn al-Mussayab" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -577,7 +576,24 @@ const Beginner = () => {
                         {hadith.bookName && <span className="font-semibold">{hadith.bookName} • </span>}
                         Reference: {hadith.chapter ? hadith.chapter + ' • ' : ''}Hadith {hadith.reference.hadith}
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
+                        <ShareDialog
+                          hadith={{
+                            id: hadith.id.toString(),
+                            book: hadith.bookName || 'Hadith',
+                            number: hadith.reference.hadith.toString(),
+                            arabic: hadith.arabic,
+                            english: hadith.english.text,
+                            narrator: hadith.english.narrator,
+                            authenticity: '',
+                            bookSlug: hadith.bookName?.toLowerCase().replace(/\s+/g, '-') || ''
+                          }}
+                        >
+                          <Button variant="outline" size="sm">
+                            <Share2 className="mr-2 h-4 w-4" />
+                            Share
+                          </Button>
+                        </ShareDialog>
                         <Button
                           variant="secondary"
                           size="sm"

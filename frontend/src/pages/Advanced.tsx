@@ -11,7 +11,12 @@ import {
   Trash2,
   Users,
   Heart,
-  Sparkles
+  Sparkles,
+  Share2,
+  Play,
+  Calendar,
+  Clock,
+  ExternalLink
 } from "lucide-react";
 
 import { Header } from "@/components/Header";
@@ -35,6 +40,8 @@ import { fetchRandomHadith } from "@/lib/hadithService";
 import { getDailyHadith, forceRefreshDailyHadith } from "@/utils/dailyHadith";
 import { VoiceSearch } from "@/components/VoiceSearch";
 import { FileUpload } from "@/components/FileUpload";
+import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/firebase";
 
 type Hadith = {
   id: number;
@@ -52,6 +59,14 @@ type Hadith = {
   status?: 'saved' | 'viewed' | 'new';
 };
 
+type Recording = {
+  id: string;
+  book: string;
+  hadithNumber: string;
+  fileUrl: string;
+  createdAt: any;
+};
+
 const Advanced = () => {
   // State management
   const [searchText, setSearchText] = useState("");
@@ -64,6 +79,9 @@ const Advanced = () => {
   const [activeTab, setActiveTab] = useState<'search' | 'recite' | 'saved'>('search');
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   const [isAiSearch, setIsAiSearch] = useState(true);
+  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [loadingRecordings, setLoadingRecordings] = useState(false);
+  const [activeRecordingId, setActiveRecordingId] = useState<string | number | null>(null);
 
   // Hooks
   const navigate = useNavigate();
@@ -92,6 +110,79 @@ const Advanced = () => {
       localStorage.setItem('savedHadiths', JSON.stringify(savedHadiths));
     }
   }, [savedHadiths]);
+
+  useEffect(() => {
+    if (user && activeTab === 'recite') {
+      loadRecordings();
+    }
+  }, [user, activeTab]);
+
+  const loadRecordings = async () => {
+    if (!user) return;
+    try {
+      setLoadingRecordings(true);
+      let querySnapshot;
+
+      try {
+        // Attempt ordered query (requires composite index)
+        const q = query(
+          collection(db, "recordings"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+        querySnapshot = await getDocs(q);
+      } catch (indexError) {
+        console.warn("Ordered query failed (possibly missing index), falling back to simple query:", indexError);
+        // Fallback: Get all recordings for user and sort manually in-memory
+        const qSimple = query(
+          collection(db, "recordings"),
+          where("userId", "==", user.uid)
+        );
+        querySnapshot = await getDocs(qSimple);
+      }
+
+      const fetchedRecordings: Recording[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedRecordings.push({ id: doc.id, ...doc.data() } as Recording);
+      });
+
+      // Sort in-memory to ensure correct order regardless of index status
+      fetchedRecordings.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
+        return timeB - timeA;
+      });
+
+      setRecordings(fetchedRecordings);
+    } catch (err) {
+      console.error("Error loading recordings:", err);
+      toast({
+        title: "Load Error",
+        description: "Failed to load your recordings. Please try refreshing.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingRecordings(false);
+    }
+  };
+
+  const handleDeleteRecording = async (recordingId: string) => {
+    try {
+      await deleteDoc(doc(db, "recordings", recordingId));
+      setRecordings(prev => prev.filter(r => r.id !== recordingId));
+      toast({
+        title: "Deleted",
+        description: "Recording removed successfully.",
+      });
+    } catch (err) {
+      console.error("Error deleting recording:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete recording.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const loadPracticeHadith = async () => {
     try {
@@ -146,17 +237,23 @@ const Advanced = () => {
 
   const handleBookSelect = (value: string) => {
     setSelectedBook(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleAuthorSelect = (value: string) => {
     setSelectedAuthor(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleNarratorSelect = (value: string) => {
     setSelectedNarrator(value);
-    navigate(`/search-results?q=${encodeURIComponent(value)}`);
+    const newSearchText = searchText ? `${searchText} ${value}` : value;
+    setSearchText(newSearchText);
+    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleSaveHadith = (hadithToSave: Hadith) => {
@@ -247,14 +344,6 @@ const Advanced = () => {
               </Button>
               <Button
                 variant="ghost"
-                className="rounded-none border-b-2 border-transparent hover:border-primary"
-                onClick={() => navigate('/liked-hadiths')}
-              >
-                <Heart className="mr-2 h-4 w-4" />
-                Liked Hadiths
-              </Button>
-              <Button
-                variant="ghost"
                 className={`rounded-none border-b-2 ${activeTab === 'recite' ? 'border-primary' : 'border-transparent'}`}
                 onClick={() => setActiveTab('recite')}
               >
@@ -303,12 +392,12 @@ const Advanced = () => {
                         <SelectValue placeholder="Book Name" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
-                        <SelectItem value="book1" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                        <SelectItem value="book2" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                        <SelectItem value="book3" className="text-[rgb(178,92,27)]">sunan an-Nasa'i</SelectItem>
-                        <SelectItem value="book4" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                        <SelectItem value="book5" className="text-[rgb(178,92,27)]">Jami'at-Tirmidhi</SelectItem>
-                        <SelectItem value="book6" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
+                        <SelectItem value="Sahih al-Bukhari" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
+                        <SelectItem value="Sahih Muslim" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
+                        <SelectItem value="Sunan an-Nasa'i" className="text-[rgb(178,92,27)]">Sunan an-Nasa'i</SelectItem>
+                        <SelectItem value="Sunan Abi Dawud" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
+                        <SelectItem value="Jami' at-Tirmidhi" className="text-[rgb(178,92,27)]">Jami' at-Tirmidhi</SelectItem>
+                        <SelectItem value="Sunan Ibn Majah" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -317,12 +406,12 @@ const Advanced = () => {
                         <SelectValue placeholder="Author's Name" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
-                        <SelectItem value="author1">Imam al-Bukhaari</SelectItem>
-                        <SelectItem value="author2">Imam Muslim</SelectItem>
-                        <SelectItem value="author3">Imam Abu Dawood</SelectItem>
-                        <SelectItem value="author4">Imam al-Tirmidhi</SelectItem>
-                        <SelectItem value="author5">Imam al-Nasaa'i</SelectItem>
-                        <SelectItem value="author6">Imam Ibn Maajah</SelectItem>
+                        <SelectItem value="Imam al-Bukhari">Imam al-Bukhaari</SelectItem>
+                        <SelectItem value="Imam Muslim">Imam Muslim</SelectItem>
+                        <SelectItem value="Imam Abu Dawood">Imam Abu Dawood</SelectItem>
+                        <SelectItem value="Imam al-Tirmidhi">Imam al-Tirmidhi</SelectItem>
+                        <SelectItem value="Imam al-Nasaa'i">Imam al-Nasaa'i</SelectItem>
+                        <SelectItem value="Imam Ibn Maajah">Imam Ibn Maajah</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -331,27 +420,27 @@ const Advanced = () => {
                         <SelectValue placeholder="Narrator's Names" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50 max-h-[300px]">
-                        <SelectItem value="narrator1" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator2" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator3" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator4" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator5" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator6" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator7" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator8">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator9">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator10">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator11">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator12">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator13">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="narrator14">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator15">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator16">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator17">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator18">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="narrator19" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                        <SelectItem value="narrator20" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                        <SelectItem value="narrator21" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
+                        <SelectItem value="Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
+                        <SelectItem value="Abdullaah Ibn Umar (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Anas Ibn Maalik (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Alee Ibn Abee Taalib (radi-Allaahu 'anhu)">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Umar Ibn al-Khattaab (radi-Allaahu 'anhu)">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Umm Salamah (radi-Allaahu 'anhaa)">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
+                        <SelectItem value="Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
+                        <SelectItem value="Saalim Ibn Abdullaah Ibn Umar" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
+                        <SelectItem value="Urwah Ibn Zubair" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
+                        <SelectItem value="Sa'eed Ibn al-Mussayab" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -397,18 +486,98 @@ const Advanced = () => {
 
           {/* Practice Recitation Tab */}
           {activeTab === 'recite' && (
-            <div className="space-y-8">
-              <Card className="bg-card shadow-lg">
-                <CardHeader>
-                  <CardTitle>Practice Hadith Recitation</CardTitle>
-                  <CardDescription>
-                    Record your recitation of hadiths and improve your pronunciation
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <VoiceRecorder />
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <Card className="bg-card shadow-lg">
+                  <CardHeader>
+                    <CardTitle>Practice Hadith Recitation</CardTitle>
+                    <CardDescription>
+                      Record your recitation and compare with the text.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <VoiceRecorder hadith={hadith || undefined} onSaveSuccess={loadRecordings} />
+                  </CardContent>
+                </Card>
+
+                {hadith && (
+                  <Card className="bg-card shadow-lg">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">Target Hadith</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-right text-xl leading-loose font-arabic mb-4">
+                        {hadith.arabic}
+                      </div>
+                      <p className="text-sm text-foreground">{hadith.english.text}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                <Card className="bg-card shadow-lg h-full">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-primary" />
+                      My Recorded Recitations
+                    </CardTitle>
+                    <CardDescription>
+                      Listen back to your saved practices.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingRecordings ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : recordings.length > 0 ? (
+                      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                        {recordings.map((rec) => (
+                          <div key={rec.id} className="flex flex-col p-3 rounded-lg border bg-accent/5 hover:bg-accent/10 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-medium text-sm">{rec.book}</h4>
+                                <p className="text-xs text-muted-foreground">Hadith #{rec.hadithNumber}</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => handleDeleteRecording(rec.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <audio src={rec.fileUrl} controls className="h-8 flex-1" />
+                              <a
+                                href={rec.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+
+                            <div className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              {rec.createdAt?.toDate ? rec.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Mic className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                        <p>No recordings yet. Start practicing!</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
@@ -452,6 +621,24 @@ const Advanced = () => {
                               {savedHadith.chapter && ` • ${savedHadith.chapter}`}
                             </div>
                           </div>
+
+                          <div className="flex justify-end gap-2 mt-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setActiveRecordingId(activeRecordingId === savedHadith.id ? null : savedHadith.id)}
+                              className={activeRecordingId === savedHadith.id ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"}
+                            >
+                              <Mic className="mr-2 h-4 w-4" />
+                              Practice
+                            </Button>
+                          </div>
+
+                          {activeRecordingId === savedHadith.id && (
+                            <div className="mt-4 pt-4 border-t animate-in slide-in-from-top-2 duration-200">
+                              <VoiceRecorder hadith={savedHadith} onSaveSuccess={loadRecordings} />
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -531,7 +718,33 @@ const Advanced = () => {
                     {hadith.bookName && <span className="font-semibold">{hadith.bookName} • </span>}
                     Reference: {hadith.chapter ? hadith.chapter + ' • ' : ''}Hadith {hadith.reference.hadith}
                   </div>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setActiveRecordingId(activeRecordingId === hadith.id ? null : hadith.id)}
+                      className={activeRecordingId === hadith.id ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"}
+                    >
+                      <Mic className="mr-2 h-4 w-4" />
+                      Practice
+                    </Button>
+                    <ShareDialog
+                      hadith={{
+                        id: hadith.id.toString(),
+                        book: hadith.bookName || 'Hadith',
+                        number: hadith.reference.hadith.toString(),
+                        arabic: hadith.arabic,
+                        english: hadith.english.text,
+                        narrator: hadith.english.narrator,
+                        authenticity: '',
+                        bookSlug: hadith.bookName?.toLowerCase().replace(/\s+/g, '-') || ''
+                      }}
+                    >
+                      <Button variant="outline" size="sm">
+                        <Share2 className="mr-2 h-4 w-4" />
+                        Share
+                      </Button>
+                    </ShareDialog>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -553,6 +766,11 @@ const Advanced = () => {
                       )}
                     </Button>
                   </div>
+                  {activeRecordingId === hadith.id && (
+                    <div className="mt-4 pt-4 border-t animate-in slide-in-from-top-2 duration-200">
+                      <VoiceRecorder hadith={hadith} onSaveSuccess={loadRecordings} />
+                    </div>
+                  )}
                 </div>
               ) : null}
             </CardContent>

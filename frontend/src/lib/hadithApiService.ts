@@ -17,6 +17,9 @@ export interface Hadith {
   category: string;
   difficulty: string;
   tags: string[];
+  isnad?: string;
+  matn?: string;
+  grade?: string;
   createdAt: any;
 }
 
@@ -127,10 +130,20 @@ export async function searchHadiths(query: string, filters: {
 export async function searchHadithsAi(query: string, filters: {
   book?: string;
   category?: string;
+  narrator?: string;
+  author?: string;
+  characters?: string;
+  grade?: string;
+  skipSummary?: boolean;
 } = {}): Promise<{ success: boolean; answer: string; sources: any[] }> {
+  const { skipSummary, ...otherFilters } = filters;
   return apiCall('/api/hadith/search/ai', {
     method: 'POST',
-    body: JSON.stringify({ q: query, filters }),
+    body: JSON.stringify({
+      q: query,
+      filters: otherFilters,
+      skipSummary: skipSummary || false
+    }),
   });
 }
 

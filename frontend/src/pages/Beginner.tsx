@@ -1,34 +1,20 @@
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-  Loader2,
-  BookOpen,
-  Mic,
-  Search,
-  Bookmark,
-  CheckCircle2,
-  RefreshCw,
-  Trash2,
-  Users,
-  Heart,
-  Star,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
-  Share2
-} from "lucide-react";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { BookOpen, Search, Bookmark, ChevronDown, ChevronUp, Users, CheckCircle2, Star, Trophy, Sparkles, Clock, Calendar, Loader2, Trash2, Share2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import VoiceSearch from "@/components/VoiceSearch";
+import FileUpload from "@/components/FileUpload";
 import { ShareDialog } from "@/components/ShareDialog";
-import { HadithSearchBar } from "@/components/HadithSearchBar";
+import { UserOnboarding } from "@/components/UserOnboarding";
+import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 import { fetchRandomHadith } from "@/lib/hadithService";
 import { getDailyHadith, forceRefreshDailyHadith } from "@/utils/dailyHadith";
-import { Textarea } from "@/components/ui/textarea";
-import { VoiceSearch } from "@/components/VoiceSearch";
-import { FileUpload } from "@/components/FileUpload";
+import { useState, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -67,6 +53,9 @@ const Beginner = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Onboarding hook
+  const { shouldShowOnboarding, skipOnboarding } = useUserOnboarding('/beginner');
 
   useEffect(() => {
     loadRandomHadith();
@@ -127,34 +116,87 @@ const Beginner = () => {
   };
 
   const handleSearch = () => {
-    const query = searchText || selectedBook || selectedAuthor || selectedNarrator;
-    if (query) {
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
+    
+    // Add search text if provided
+    if (searchText.trim()) {
+      const query = searchText.trim();
+      
+      // Check if it's a natural language query and enable AI mode
+      const shouldUseAi = isNaturalLanguageQuery(query);
+      console.log('Natural language query detected:', shouldUseAi);
+      
       params.set('q', query);
-      if (isAiSearch) params.set('ai', 'true');
-      navigate(`/search-results?${params.toString()}`);
+      if (shouldUseAi) params.set('ai', 'true');
     }
+    
+    // Add filters if selected
+    if (selectedBook) {
+      params.set('book', selectedBook);
+    }
+    
+    if (selectedAuthor) {
+      params.set('author', selectedAuthor);
+    }
+    
+    if (selectedNarrator) {
+      params.set('narrator', selectedNarrator);
+    }
+    
+    // Only navigate if there's at least some criteria
+    if (params.toString()) {
+      navigate(`/search-results?${params.toString()}`);
+    } else {
+      toast({
+        title: 'Search Required',
+        description: 'Please enter search text or select filters',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Helper function to detect natural language queries
+  const isNaturalLanguageQuery = (query: string): boolean => {
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Check if it's a question
+    const questionIndicators = ['?', 'what', 'when', 'where', 'who', 'why', 'how', 'is', 'are', 'was', 'were', 'will', 'can', 'could', 'should', 'would'];
+    const hasQuestionWord = questionIndicators.some(indicator => lowerQuery.includes(indicator));
+    
+    // Check if it's a sentence (multiple words, contains verbs, etc.)
+    const sentenceIndicators = ['please', 'tell', 'me', 'show', 'find', 'search', 'look', 'get', 'give', 'help', 'want', 'need', 'like', 'know', 'understand', 'explain'];
+    const hasSentenceWord = sentenceIndicators.some(indicator => lowerQuery.includes(indicator));
+    
+    // Check if it's longer than typical keyword search
+    const isLongQuery = query.split(' ').length > 3;
+    
+    // Check if it contains natural language patterns
+    const hasNaturalPattern = lowerQuery.includes('hadith about') || 
+                              lowerQuery.includes('prophet') || 
+                              lowerQuery.includes('islamic') ||
+                              lowerQuery.includes('teaching') ||
+                              lowerQuery.includes('story');
+    
+    return hasQuestionWord || hasSentenceWord || isLongQuery || hasNaturalPattern;
   };
 
   const handleBookSelect = (value: string) => {
     setSelectedBook(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleAuthorSelect = (value: string) => {
     setSelectedAuthor(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
   };
 
   const handleNarratorSelect = (value: string) => {
     setSelectedNarrator(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
+  };
+
+  const clearFilters = () => {
+    setSelectedBook('');
+    setSelectedAuthor('');
+    setSelectedNarrator('');
+    setSearchText('');
   };
 
   const handleSaveHadith = (hadithToSave: Hadith) => {
@@ -413,106 +455,50 @@ const Beginner = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4 max-w-3xl mx-auto">
-                    <div className="relative">
-                      <Textarea
-                        placeholder="Enter Hadith gist here..."
-                        className="bg-input border-border min-h-[80px] resize-none pr-24"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                      />
-                      <div className="absolute right-3 top-3 flex items-center gap-2">
-                        <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                        <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
-                      </div>
-                    </div>
-
                     <div className="space-y-3">
-                      <Select value={selectedBook} onValueChange={handleBookSelect}>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue placeholder="Book Name" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover z-50">
-                          <SelectItem value="Sahih al-Bukhari" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                          <SelectItem value="Sahih Muslim" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                          <SelectItem value="Sunan an-Nasa'i" className="text-[rgb(178,92,27)]">Sunan an-Nasa'i</SelectItem>
-                          <SelectItem value="Sunan Abi Dawud" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                          <SelectItem value="Jami' at-Tirmidhi" className="text-[rgb(178,92,27)]">Jami' at-Tirmidhi</SelectItem>
-                          <SelectItem value="Sunan Ibn Majah" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue placeholder="Author's Name" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover z-50">
-                          <SelectItem value="Imam al-Bukhari">Imam al-Bukhaari</SelectItem>
-                          <SelectItem value="Imam Muslim">Imam Muslim</SelectItem>
-                          <SelectItem value="Imam Abu Dawood">Imam Abu Dawood</SelectItem>
-                          <SelectItem value="Imam al-Tirmidhi">Imam al-Tirmidhi</SelectItem>
-                          <SelectItem value="Imam al-Nasaa'i">Imam al-Nasaa'i</SelectItem>
-                          <SelectItem value="Imam Ibn Maajah">Imam Ibn Maajah</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue placeholder="Narrator's Names" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover z-50 max-h-[300px]">
-                          <SelectItem value="Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                          <SelectItem value="Abdullaah Ibn Umar (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Anas Ibn Maalik (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Alee Ibn Abee Taalib (radi-Allaahu 'anhu)">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Umar Ibn al-Khattaab (radi-Allaahu 'anhu)">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Umm Salamah (radi-Allaahu 'anhaa)">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                          <SelectItem value="Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                          <SelectItem value="Saalim Ibn Abdullaah Ibn Umar" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                          <SelectItem value="Urwah Ibn Zubair" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                          <SelectItem value="Sa'eed Ibn al-Mussayab" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* AI Search Toggle */}
-                    <div
-                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors"
-                      style={{ backgroundColor: isAiSearch ? 'rgba(16, 185, 129, 0.1)' : 'transparent', border: isAiSearch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}
-                      onClick={() => setIsAiSearch(!isAiSearch)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isAiSearch}
-                        onChange={() => setIsAiSearch(!isAiSearch)}
-                        className="w-4 h-4 accent-emerald-500"
-                      />
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="font-medium text-sm">Search with Agentic AI</span>
+                      <div className="relative">
+                        <Textarea
+                          placeholder="Enter Hadith gist here..."
+                          className="bg-input border-border min-h-[80px] resize-none pr-20"
+                          value={searchText}
+                          onChange={(e) => setSearchText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSearch();
+                            }
+                          }}
+                          onKeyPress={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSearch();
+                            }
+                          }}
+                        />
+                        <div className="absolute right-2 top-2 flex items-center gap-1">
+                          <VoiceSearch onTranscript={(text) => setSearchText(prev => (prev + " " + text).trim())} />
+                          <FileUpload onExtractedText={(text) => {
+                            setSearchText(text.trim());
+                            // Auto-trigger AI search immediately after upload
+                            const params = new URLSearchParams();
+                            params.set('q', text.trim());
+                            params.set('ai', 'true'); // always use AI for image uploads
+                            navigate(`/search-results?${params.toString()}`);
+                          }} />
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground ml-7">Get intelligent, summarized answers powered by AI</p>
                     </div>
 
                     <Button
                       className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                       onClick={handleSearch}
+                      disabled={loading}
                     >
-                      {isAiSearch ? (
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4" />
-                          AI Search Hadiths
-                        </div>
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Loading...
+                        </>
                       ) : (
                         'Search Hadiths'
                       )}
@@ -520,6 +506,7 @@ const Beginner = () => {
                   </div>
                 </CardContent>
               </Card>
+
               {/* Daily Hadith Section */}
               <Card className="bg-card shadow-lg mt-8">
                 <CardHeader>
@@ -706,7 +693,7 @@ const Beginner = () => {
                       </Button>
                       <ShareDialog
                         bookName={book.name}
-                        bookUrl={`${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}`}
+                        bookUrl={typeof window !== 'undefined' ? `${window.location.origin}/search-results?q=${encodeURIComponent(book.name)}` : `/search-results?q=${encodeURIComponent(book.name)}`}
                       />
                     </div>
                   </CardContent>
@@ -715,8 +702,16 @@ const Beginner = () => {
             </div>
           </div>
         </div>
-      </main >
-    </div >
+      </main>
+
+      {/* User Onboarding */}
+      {shouldShowOnboarding && (
+        <UserOnboarding 
+          currentPage="/beginner" 
+          onClose={skipOnboarding} 
+        />
+      )}
+    </div>
   );
 };
 

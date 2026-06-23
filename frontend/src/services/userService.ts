@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from '../firebase';
 
@@ -7,14 +7,14 @@ export interface UserData {
   email: string;
   displayName?: string;
   photoURL?: string;
-  createdAt: Date;
-  lastLoginAt?: Date;
+  createdAt: any; // Firebase Timestamp
+  lastLoginAt?: any; // Firebase Timestamp
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   role: 'user' | 'scholar' | 'admin';
   requestedRole?: 'scholar' | 'admin';
   rejectionReason?: string;
   approvedBy?: string;
-  approvedAt?: Date;
+  approvedAt?: any; // Firebase Timestamp
   preferences?: {
     theme?: 'light' | 'dark';
     notifications?: boolean;
@@ -29,8 +29,8 @@ export const createUserData = async (user: User, displayName?: string): Promise<
       email: user.email || '',
       displayName: displayName || user.displayName || undefined,
       photoURL: user.photoURL || undefined,
-      createdAt: new Date(),
-      lastLoginAt: new Date(),
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
       status: 'pending',
       role: 'user',
       preferences: {
@@ -68,7 +68,7 @@ export const updateLastLogin = async (uid: string): Promise<void> => {
   try {
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {
-      lastLoginAt: new Date()
+      lastLoginAt: serverTimestamp()
     });
     console.log('Last login updated for:', uid);
   } catch (error) {

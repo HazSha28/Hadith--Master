@@ -53,10 +53,36 @@ async function searchHadithsInDb({ query, book_id, grade, narrator, author, char
     let paramIndex = 1;
 
     if (query) {
-        sql += ` AND (to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${paramIndex}) 
-             OR h.english_translation ILIKE $${paramIndex + 1})`;
-        params.push(query, `%${query}%`);
-        paramIndex += 2;
+        // Check if query contains Arabic characters
+        const hasArabic = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(query);
+
+        // Extract Arabic portion and English portion separately
+        const arabicPart = query.match(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s]+/g)?.join(' ').trim() || '';
+        const englishPart = query.replace(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/g, '').trim();
+
+        if (hasArabic && arabicPart && englishPart) {
+            // Both Arabic and English — Arabic as primary, English as context
+            // Strip Arabic diacritics (harakat) for matching since OCR images
+            // rarely include them, but the DB text has full diacritics
+            sql += ` AND (
+                regexp_replace(h.arabic_text, '[\u064B-\u065F\u0610-\u061A\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u200F\u200E\u202A-\u202E]', '', 'g') ILIKE $${paramIndex}
+                OR to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${paramIndex + 1})
+                OR h.english_translation ILIKE $${paramIndex + 2}
+            )`;
+            params.push(`%${arabicPart}%`, englishPart, `%${englishPart}%`);
+            paramIndex += 3;
+        } else if (hasArabic && arabicPart) {
+            // Arabic only — strip diacritics before matching
+            sql += ` AND regexp_replace(h.arabic_text, '[\u064B-\u065F\u0610-\u061A\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u200F\u200E\u202A-\u202E]', '', 'g') ILIKE $${paramIndex}`;
+            params.push(`%${arabicPart}%`);
+            paramIndex += 1;
+        } else {
+            // English only — full-text search + ILIKE fallback
+            sql += ` AND (to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${paramIndex}) 
+                 OR h.english_translation ILIKE $${paramIndex + 1})`;
+            params.push(query, `%${query}%`);
+            paramIndex += 2;
+        }
     }
 
     if (book_id) {
@@ -101,9 +127,13 @@ async function searchHadithsInDb({ query, book_id, grade, narrator, author, char
  */
 export const aiSearchHandler = async (req, res) => {
     try {
-        const { q, filters } = req.body;
-        const query = q?.trim();
+        // Accept q from body (JSON POST) — handle both {q: ...} and {query: ...}
+        const rawQuery = req.body?.q || req.body?.query || req.query?.q || '';
+        const query = rawQuery?.toString().trim();
+        const filters = req.body?.filters || {};
+        
         console.log(`🤖 AI Search Request: "${query}"`);
+        console.log(`📦 Full body received:`, JSON.stringify(req.body));
 
         if (!query) {
             return res.status(400).json({ success: false, error: 'Query is required' });

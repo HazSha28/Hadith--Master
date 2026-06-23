@@ -45,19 +45,43 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+  console.log('Making API call to:', url);
+  console.log('Request options:', options);
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers,
+      },
+      mode: 'cors',
+      ...options,
+    });
 
-  if (!response.ok) {
-    throw new Error(`API request failed with status ${response.status}`);
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    } else {
+      const text = await response.text();
+      console.log('Non-JSON response:', text);
+      return text;
+    }
+  } catch (error) {
+    console.error('API call failed:', error);
+    console.error('URL:', url);
+    console.error('Options:', options);
+    throw error;
   }
-
-  return response.json();
 }
 
 // Get all hadiths with pagination and filtering
@@ -126,7 +150,40 @@ export async function searchHadiths(query: string, filters: {
   return response.data;
 }
 
-// AI Search hadiths (Agentic AI)
+// Test API connection
+export async function testApiConnection(): Promise<boolean> {
+  try {
+    console.log('Testing API connection...');
+    const response = await apiCall('/api/hadith/search?q=test');
+    console.log('API connection test successful:', response);
+    return true;
+  } catch (error) {
+    console.error('API connection test failed:', error);
+    return false;
+  }
+}
+
+// Test AI API connection
+export async function testAiApiConnection(): Promise<boolean> {
+  try {
+    console.log('Testing AI API connection...');
+    const response = await apiCall('/api/hadith/search/ai', {
+      method: 'POST',
+      body: JSON.stringify({
+        q: 'test',
+        fastMode: true,
+        skipSummary: true
+      })
+    });
+    console.log('AI API connection test successful:', response);
+    return true;
+  } catch (error) {
+    console.error('AI API connection test failed:', error);
+    return false;
+  }
+}
+
+// AI Search hadiths (Agentic AI) - Optimized for speed
 export async function searchHadithsAi(query: string, filters: {
   book?: string;
   category?: string;
@@ -137,14 +194,39 @@ export async function searchHadithsAi(query: string, filters: {
   skipSummary?: boolean;
 } = {}): Promise<{ success: boolean; answer: string; sources: any[] }> {
   const { skipSummary, ...otherFilters } = filters;
-  return apiCall('/api/hadith/search/ai', {
-    method: 'POST',
-    body: JSON.stringify({
-      q: query,
-      filters: otherFilters,
-      skipSummary: skipSummary || false
-    }),
-  });
+  
+  console.log('🤖 AI Search Function Called With:');
+  console.log('📝 Query:', query);
+  console.log('🔍 Filters:', otherFilters);
+  console.log('⚡ Fast Mode Enabled: true');
+  
+  // Add performance headers for faster response
+  const startTime = Date.now();
+  console.log('Starting AI search for:', query);
+  
+  try {
+    const response = await apiCall('/api/hadith/search/ai', {
+      method: 'POST',
+      body: JSON.stringify({
+        q: query,
+        filters: otherFilters,
+        skipSummary: true, // Always skip summary for faster response
+        fastMode: true // Enable fast mode if supported by backend
+      }),
+      headers: {
+        'X-Request-ID': `search-${Date.now()}`,
+        'X-Fast-Mode': 'true'
+      }
+    });
+    
+    const endTime = Date.now();
+    console.log(`AI search completed in ${endTime - startTime}ms`);
+    
+    return response;
+  } catch (error) {
+    console.error('AI search failed:', error);
+    throw error;
+  }
 }
 
 // Get random hadiths
@@ -197,17 +279,6 @@ export async function getHadithsByCategory(categoryName: string, params: {
 
   const response = await apiCall(endpoint);
   return response.data;
-}
-
-// Test API connection
-export async function testApiConnection(): Promise<boolean> {
-  try {
-    const response = await apiCall('/health');
-    return response.success;
-  } catch (error) {
-    console.error('API Connection Test Failed:', error);
-    return false;
-  }
 }
 
 // Fallback functions for when API is not available

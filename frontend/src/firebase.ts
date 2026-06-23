@@ -1,10 +1,13 @@
 // src/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
+//initializeApp — creates a new Firebase app instance using your config
+//getApps — returns a list of all Firebase apps already initialized (prevents duplicates)
+//getApp — returns the already-existing Firebase app if one exist
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
-
+//Imports the function to connect to Firestore 
 const firebaseConfig = {
   apiKey: "AIzaSyC53sa8nPeQA68X5FmgSTvLJmrc_AI_LSo",
   authDomain: "hadith-master-40045.firebaseapp.com",
@@ -16,9 +19,11 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+// if NO apps exist yet (true when length is 0),If true → initializeApp(firebaseConfig) — create a new app
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize services
+//export means any other file can do import { db } from './firebase' and use it directly.
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);

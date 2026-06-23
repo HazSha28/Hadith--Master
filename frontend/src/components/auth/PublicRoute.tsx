@@ -2,11 +2,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-interface ProtectedRouteProps {
+interface PublicRouteProps {
   children: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
   const { currentUser, loading, profile } = useAuth();
 
   if (loading) {
@@ -17,13 +17,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
+  // Allow access if user is authenticated, regardless of approval status
+  if (currentUser) {
+    return <>{children}</>;
   }
 
-  // Allow access if user is authenticated, even if profile is still loading
-  // This prevents users from getting stuck if profile creation has issues
-  return <>{children}</>;
+  return <Navigate to="/login" replace />;
 };
 
-export default ProtectedRoute;
+export default PublicRoute;

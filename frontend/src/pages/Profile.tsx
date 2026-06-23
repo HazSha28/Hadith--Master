@@ -1,399 +1,681 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Header } from '@/components/Header';
 import {
-  User,
-  Mail,
-  Calendar,
-  BookOpen,
-  Heart,
-  Settings,
-  Award,
-  Clock,
-  MapPin,
-  Shield
+  User, Mail, Calendar, BookOpen, Heart, Settings, Award,
+  Clock, MapPin, Shield, Edit3, Save, X, TrendingUp,
+  Activity, Bookmark, Share2, MessageSquare, Star, Trophy,
+  Sparkles, Crown, Camera, ChevronRight, Flame, Target,
+  BarChart2, BookMarked, Hash, Bell, Lock, LogOut, Loader2, Globe
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import {
+  doc, getDoc, updateDoc, serverTimestamp,
+  collection, query, orderBy, limit,
+  onSnapshot                              // ← real-time listener
+} from 'firebase/firestore';
+import { db, storage } from '@/firebase';
 import { updateProfile } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { isAdminEmail } from '@/config/adminConfig';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const Profile: React.FC = () => {
-  const { currentUser, profile: authProfile } = useAuth();
-  const isUserAdmin = authProfile?.role === 'admin' || isAdminEmail(currentUser?.email);
+/* ─── Types ─────────────────────────────────────────────── */
+interface UserStats {
+  hadithsRead: number;
+  hadithsLiked: number;
+  hadithsShared: number;
+  commentsPosted: number;
+  studyStreak: number;
+  totalStudyTime: number;
+  lastActive: Date | null;
+}
+
+/* ─── Helpers ────────────────────────────────────────────── */
+const getInitials = (name?: string | null, email?: string | null) => {
+  if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  if (email) return email[0].toUpperCase();
+  return 'U';
+};
+
+const formatDate = (ts: any) => {
+  if (!ts) return '—';
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const StatCard = ({
+  icon: Icon, label, value, color, sub
+}: { icon: any; label: string; value: number | string; color: string; sub?: string }) => (
+  <div className={`rounded-2xl p-5 bg-gradient-to-br ${color} flex flex-col gap-2`}>
+    <div className="flex items-center justify-between">
+      <Icon className="h-5 w-5 opacity-80" />
+      <span className="text-3xl font-bold">{value}</span>
+    </div>
+    <p className="text-sm font-medium opacity-90">{label}</p>
+    {sub && <p className="text-xs opacity-70">{sub}</p>}
+  </div>
+);
+
+/* ─── Component ──────────────────────────────────────────── */
+const Profile = () => {
+  const { currentUser, profile: authProfile, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<any>({});
+  const isUserAdmin = authProfile?.role === 'admin' || isAdminEmail(currentUser?.email);
+
+  const [profile, setProfile]         = useState<any>(null);
+  const [loading, setLoading]         = useState(true);
+  const [formData, setFormData]       = useState<any>({});
+  const [saving, setSaving]           = useState(false);
+  const [editOpen, setEditOpen]       = useState(false);
+  const [userStats, setUserStats]     = useState<UserStats | null>(null);
   const [savedHadiths, setSavedHadiths] = useState<any[]>([]);
-  const [userStats, setUserStats] = useState<any>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
+  /* Load profile */
   useEffect(() => {
     if (authProfile) {
       setProfile(authProfile);
       setFormData(authProfile);
       setLoading(false);
-    }
-  }, [authProfile]);
+    } else if (currentUser) {
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, 'users', currentUser.uid));
+          const data = snap.exists()
+            ? { role: 'user', status: 'pending', preferences: {}, ...snap.data() }
+            : { uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || 'User', role: 'user', status: 'pending' };
+          setProfile(data);
+          setFormData(data);
+        } catch { /* fallback */ } finally { setLoading(false); }
+      })();
+    } else { setLoading(false); }
+  }, [authProfile, currentUser]);
 
+  /* Load stats + activity — real-time listeners */
   useEffect(() => {
-    if (currentUser) {
-      loadUserStats();
-    }
-  }, [currentUser]);
-
-  const loadUserStats = async () => {
-    try {
-      // Load saved hadiths
-      const savedRef = collection(db, 'userCollections', currentUser.uid, 'savedHadiths');
-      const savedSnapshot = await getDocs(savedRef);
-      const savedData = savedSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          liked: data.liked || false,
-          shared: data.shared || false
-        };
-      });
-      setSavedHadiths(savedData);
-
-      // Calculate stats
-      const stats = {
-        hadithsRead: savedData.length,
-        hadithsLiked: savedData.filter(h => h.liked).length,
-        hadithsShared: savedData.filter(h => h.shared).length,
-        commentsPosted: 0 // TODO: Load from comments collection
-      };
-      setUserStats(stats);
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const handleSaveProfile = async () => {
     if (!currentUser) return;
 
-    try {
-      // Update Firebase Auth profile if displayName changed
-      if (formData.fullName && formData.fullName !== profile.fullName) {
-        await updateProfile(currentUser, { displayName: formData.fullName });
+    // ── Listener 1: Saved hadiths (userCollections subcollection) ──
+    const savedRef = collection(db, 'userCollections', currentUser.uid, 'savedHadiths');
+    const unsubSaved = onSnapshot(savedRef, (snap) => {
+      const saved = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+      setSavedHadiths(saved);
+      // Recalculate stats whenever saved hadiths change
+      setUserStats(prev => prev
+        ? {
+            ...prev,
+            hadithsRead:   saved.length,
+            hadithsLiked:  saved.filter((h: any) => h.liked).length,
+            hadithsShared: saved.filter((h: any) => h.shared).length,
+          }
+        : {
+            hadithsRead:   saved.length,
+            hadithsLiked:  saved.filter((h: any) => h.liked).length,
+            hadithsShared: saved.filter((h: any) => h.shared).length,
+            commentsPosted: 0,
+            studyStreak:    0,
+            totalStudyTime: 0,
+            lastActive:     null,
+          }
+      );
+    }, (err) => console.error('savedHadiths listener error:', err));
+
+    // ── Listener 2: Activity log ──
+    const actRef = query(
+      collection(db, 'userActivity', currentUser.uid, 'activities'),
+      orderBy('timestamp', 'desc'),
+      limit(20)
+    );
+    const unsubActivity = onSnapshot(actRef, (snap) => {
+      const acts = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        timestamp: d.data().timestamp?.toDate?.() || new Date(),
+      })) as any[];
+      setRecentActivity(acts);
+      // Recalculate streak + time whenever activity changes
+      const streak = calcStreak(acts);
+      setUserStats(prev => prev
+        ? {
+            ...prev,
+            commentsPosted: acts.filter(a => a.type === 'commented').length,
+            studyStreak:    streak,
+            totalStudyTime: acts.length * 5,
+            lastActive:     acts.length > 0 ? acts[0].timestamp : null,
+          }
+        : null
+      );
+    }, (err) => console.error('activity listener error:', err));
+
+    // ── Listener 3: User profile document ──
+    const profileRef = doc(db, 'users', currentUser.uid);
+    const unsubProfile = onSnapshot(profileRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile((prev: any) => ({ ...prev, ...data }));
       }
+    }, (err) => console.error('profile listener error:', err));
 
-      // Update Firestore profile
-      const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, {
-        ...formData,
-        updatedAt: serverTimestamp()
-      });
+    // Cleanup all listeners when component unmounts or user changes
+    return () => {
+      unsubSaved();
+      unsubActivity();
+      unsubProfile();
+    };
+  }, [currentUser]);
 
-      setProfile({ ...profile, ...formData });
-      setEditing(false);
+  const calcStreak = (acts: any[]) => {
+    if (!acts.length) return 0;
+    const days = new Set(acts.map(a => {
+      const d = new Date(a.timestamp); d.setHours(0,0,0,0); return d.toISOString();
+    }));
+    let streak = 0;
+    const cur = new Date(); cur.setHours(0,0,0,0);
+    while (days.has(cur.toISOString())) { streak++; cur.setDate(cur.getDate() - 1); }
+    return streak;
+  };
 
-      toast({
-        title: 'Success',
-        description: 'Profile updated successfully',
-      });
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update profile',
-        variant: 'destructive'
-      });
+  /* Avatar upload */
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+    setAvatarUploading(true);
+    try {
+      const storageRef = ref(storage, `avatars/${currentUser.uid}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateProfile(currentUser, { photoURL: url });
+      await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: url, updatedAt: serverTimestamp() });
+      setProfile((p: any) => ({ ...p, photoURL: url }));
+      toast({ title: 'Avatar updated' });
+    } catch {
+      toast({ title: 'Upload failed', variant: 'destructive' });
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleCancelEdit = () => {
-    setFormData(profile || {});
-    setEditing(false);
+  /* Save profile */
+  const handleSave = async () => {
+    if (!currentUser) return;
+    setSaving(true);
+    try {
+      if (formData.fullName !== profile?.fullName) {
+        await updateProfile(currentUser, { displayName: formData.fullName });
+      }
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        ...formData,
+        displayName: formData.fullName,
+        updatedAt: serverTimestamp(),
+      });
+      setProfile((p: any) => ({ ...p, ...formData }));
+      setEditOpen(false);
+      toast({ title: 'Profile saved' });
+    } catch {
+      toast({ title: 'Save failed', variant: 'destructive' });
+    } finally { setSaving(false); }
   };
 
-  const getRoleBadge = (role: string) => {
-    const colors = {
-      user: 'bg-blue-100 text-blue-800',
-      scholar: 'bg-purple-100 text-purple-800',
-      admin: 'bg-red-100 text-red-800'
-    };
-
-    return (
-      <Badge className={colors[role as keyof typeof colors] || 'bg-gray-100 text-gray-800'}>
-        {role.charAt(0).toUpperCase() + role.slice(1)}
-      </Badge>
-    );
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      pending: 'secondary',
-      approved: 'default',
-      suspended: 'destructive'
-    };
+  /* Loading */
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+    </div>
+  );
 
-    const variant = variants[status as keyof typeof variants] || 'secondary';
-
-    return (
-      <Badge variant={variant}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Profile Not Found</h1>
-          <p className="text-muted-foreground">Unable to load your profile information.</p>
-        </div>
-      </div>
-    );
-  }
+  const displayName = profile?.fullName || profile?.displayName || 'User';
+  const photoURL    = currentUser?.photoURL || profile?.photoURL;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Default Header */}
       <Header />
 
-      {/* Profile Header */}
-      <div className="bg-gradient-to-r from-transparent via-muted/20 to-transparent border-b border-border">
-        <div className="container mx-auto px-6 py-8">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-            <Avatar className="h-24 w-24 border-4 border-border">
-              <AvatarFallback className="text-2xl font-bold bg-muted">
-                {profile.fullName?.charAt(0) || profile.displayName?.charAt(0) || profile.email?.charAt(0) || 'U'}
+      {/* ── Cover + Avatar ───────────────────────────────── */}
+      <div className="relative">
+        {/* Cover gradient */}
+        <div className="h-52 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700" />
+
+        {/* Avatar */}
+        <div className="absolute left-8 bottom-0 translate-y-1/2">
+          <div className="relative group">
+            <Avatar className="h-28 w-28 border-4 border-background shadow-xl ring-2 ring-emerald-400">
+              {photoURL && <AvatarImage src={photoURL} alt={displayName} />}
+              <AvatarFallback className="text-3xl font-bold bg-emerald-100 text-emerald-700">
+                {getInitials(displayName, profile?.email)}
               </AvatarFallback>
             </Avatar>
+            <button
+              onClick={handleAvatarClick}
+              className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            >
+              {avatarUploading
+                ? <Loader2 className="h-6 w-6 text-white animate-spin" />
+                : <Camera className="h-6 w-6 text-white" />}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          </div>
+        </div>
 
-            <div className="flex-1 text-center md:text-left">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">
-                {profile.fullName || profile.displayName || 'User'}
-              </h1>
-              <p className="text-lg text-muted-foreground mb-4">{profile.email}</p>
-
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                {isUserAdmin && (
-                  <Badge className="bg-red-600 text-white hover:bg-red-700">Admin</Badge>
-                )}
-                {getRoleBadge(profile.role)}
-                {profile.status !== 'approved' && getStatusBadge(profile.status)}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  Joined {profile.createdAt?.toDate?.() ?
-                    new Date(profile.createdAt.toDate()).toLocaleDateString() :
-                    'Unknown'
-                  }
+        {/* Top-right action buttons */}
+        <div className="absolute right-6 bottom-4 flex gap-2">
+          {isUserAdmin && (
+            <>
+              <Link to="/admin/profile">
+                <Button size="sm" variant="secondary" className="shadow">
+                  <Crown className="h-4 w-4 mr-1" /> Admin Profile
+                </Button>
+              </Link>
+              <Link to="/admin/panel">
+                <Button size="sm" variant="secondary" className="shadow">
+                  <Shield className="h-4 w-4 mr-1" /> Admin Panel
+                </Button>
+              </Link>
+            </>
+          )}
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-white text-gray-800 hover:bg-gray-100 shadow">
+                <Edit3 className="h-4 w-4 mr-1" /> Edit Profile
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit Profile</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Full Name</label>
+                  <Input value={formData.fullName || ''} onChange={e => setFormData({ ...formData, fullName: e.target.value })} placeholder="Your full name" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Email</label>
+                  <Input value={profile?.email || ''} disabled className="opacity-60" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Location</label>
+                  <Input value={formData.location || ''} onChange={e => setFormData({ ...formData, location: e.target.value })} placeholder="City, Country" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Bio</label>
+                  <textarea
+                    className="w-full p-3 border rounded-lg resize-none min-h-[90px] bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={formData.bio || ''}
+                    onChange={e => setFormData({ ...formData, bio: e.target.value })}
+                    placeholder="Tell us about yourself..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Button variant="outline" onClick={() => { setFormData(profile); setEditOpen(false); }} disabled={saving}>
+                    <X className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                    Save
+                  </Button>
                 </div>
               </div>
-
-              {isUserAdmin && (
-                <div className="mt-4">
-                  <Link to="/admin/panel">
-                    <Button variant="destructive" size="sm">
-                      <Shield className="h-4 w-4 mr-2" />
-                      Manage Admin Panel
-                    </Button>
-                  </Link>
-                </div>
-              )}
-
-              {profile.bio && (
-                <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
-                  {profile.bio}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center md:items-end gap-3">
-              {!editing && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setEditing(true)}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Edit Profile
-                </Button>
-              )}
-              {profile.location && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  {profile.location}
-                </div>
-              )}
-              {profile.website && (
-                <a
-                  href={profile.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline flex items-center gap-2"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  {profile.website}
-                </a>
-              )}
-            </div>
-          </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Profile Information */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Profile Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Edit Form */}
-                {editing ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">Full Name</label>
-                        <Input
-                          value={formData.fullName || ''}
-                          onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                          placeholder="Enter your full name"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Location</label>
-                        <Input
-                          value={formData.location || ''}
-                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                          placeholder="City, Country"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Website</label>
-                        <Input
-                          value={formData.website || ''}
-                          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                          placeholder="https://yourwebsite.com"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium">Bio</label>
-                      <textarea
-                        className="w-full p-2 border rounded-md resize-none min-h-[100px]"
-                        value={formData.bio || ''}
-                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                        placeholder="Tell us about yourself..."
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button variant="outline" onClick={handleCancelEdit}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSaveProfile}>
-                        Save Changes
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground">
-                      Click "Edit Profile" to update your information.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* ── Profile Info ─────────────────────────────────── */}
+      <div className="container mx-auto px-6 pt-20 pb-4">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold">{displayName}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-muted-foreground text-sm">{profile?.email}</span>
+              {/* Role badge */}
+              {profile?.role === 'admin' && (
+                <Badge className="bg-amber-100 text-amber-800 border-amber-200">⭐ Admin</Badge>
+              )}
+              {profile?.role === 'scholar' && (
+                <Badge className="bg-purple-100 text-purple-800 border-purple-200">📚 Scholar</Badge>
+              )}
+              {profile?.role === 'user' && (
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">🕌 Member</Badge>
+              )}
+              {/* Status */}
+              {profile?.status === 'pending' && (
+                <Badge variant="secondary">Pending Approval</Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+              {profile?.location && (
+                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{profile.location}</span>
+              )}
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                Joined {formatDate(profile?.createdAt)}
+              </span>
+              {userStats?.lastActive && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  Last active {userStats.lastActive.toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            {profile?.bio && (
+              <p className="mt-3 text-sm text-muted-foreground max-w-2xl leading-relaxed">{profile.bio}</p>
+            )}
           </div>
 
-          {/* Stats Sidebar */}
-          <div className="space-y-6">
-            {/* User Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5" />
-                  Your Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {userStats && (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Hadiths Read</span>
-                      <span className="font-bold">{userStats.hadithsRead}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Hadiths Liked</span>
-                      <span className="font-bold">{userStats.hadithsLiked}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Hadiths Shared</span>
-                      <span className="font-bold">{userStats.hadithsShared}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Comments Posted</span>
-                      <span className="font-bold">{userStats.commentsPosted}</span>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+          {/* Sign out */}
+          <Button variant="outline" size="sm" onClick={handleSignOut} className="self-start md:self-end text-destructive border-destructive/30 hover:bg-destructive/10">
+            <LogOut className="h-4 w-4 mr-1" /> Sign Out
+          </Button>
+        </div>
+      </div>
 
-            {/* Recent Saved Hadiths */}
-            <Card>
+      <Separator />
+
+      {/* ── Main Content ─────────────────────────────────── */}
+      <div className="container mx-auto px-6 py-8">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
+            <TabsTrigger value="saved" className="rounded-lg">Saved Hadiths</TabsTrigger>
+            <TabsTrigger value="activity" className="rounded-lg">Activity</TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg">Settings</TabsTrigger>
+          </TabsList>
+
+          {/* ── Overview Tab ─────────────────────────────── */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard
+                icon={BookOpen}
+                label="Hadiths Read"
+                value={userStats?.hadithsRead ?? 0}
+                color="from-emerald-500 to-teal-600 text-white"
+              />
+              <StatCard
+                icon={Flame}
+                label="Study Streak"
+                value={`${userStats?.studyStreak ?? 0}d`}
+                color="from-orange-400 to-red-500 text-white"
+                sub={userStats?.studyStreak ? 'Keep it up! 🔥' : 'Start today!'}
+              />
+              <StatCard
+                icon={Heart}
+                label="Liked"
+                value={userStats?.hadithsLiked ?? 0}
+                color="from-pink-400 to-rose-500 text-white"
+              />
+              <StatCard
+                icon={Clock}
+                label="Study Time"
+                value={`${userStats?.totalStudyTime ?? 0}m`}
+                color="from-violet-500 to-purple-600 text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Achievements */}
+              <Card className="lg:col-span-2 border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Trophy className="h-5 w-5 text-amber-500" /> Achievements
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { title: 'First Hadith', icon: '📖', achieved: (userStats?.hadithsRead ?? 0) >= 1 },
+                      { title: '10 Hadiths',   icon: '📚', achieved: (userStats?.hadithsRead ?? 0) >= 10 },
+                      { title: '3-Day Streak', icon: '🔥', achieved: (userStats?.studyStreak ?? 0) >= 3 },
+                      { title: 'Shared Faith', icon: '🤝', achieved: (userStats?.hadithsShared ?? 0) >= 1 },
+                      { title: '25 Hadiths',   icon: '🌟', achieved: (userStats?.hadithsRead ?? 0) >= 25 },
+                      { title: 'Week Streak',  icon: '📅', achieved: (userStats?.studyStreak ?? 0) >= 7 },
+                      { title: 'Scholar',      icon: '🎓', achieved: (userStats?.hadithsRead ?? 0) >= 50 },
+                      { title: 'Devoted',      icon: '👑', achieved: (userStats?.studyStreak ?? 0) >= 30 },
+                    ].map(b => (
+                      <div
+                        key={b.title}
+                        className={`rounded-xl p-3 text-center border transition-all ${
+                          b.achieved
+                            ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700'
+                            : 'bg-muted/40 border-transparent opacity-40 grayscale'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{b.icon}</div>
+                        <p className="text-xs font-medium leading-tight">{b.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Progress */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Target className="h-5 w-5 text-blue-500" /> Goals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {[
+                    { label: 'Read 100 Hadiths', current: userStats?.hadithsRead ?? 0, goal: 100, color: 'bg-emerald-500' },
+                    { label: '30-Day Streak',    current: userStats?.studyStreak ?? 0, goal: 30,  color: 'bg-orange-500' },
+                    { label: 'Like 50 Hadiths',  current: userStats?.hadithsLiked ?? 0, goal: 50, color: 'bg-pink-500' },
+                  ].map(g => (
+                    <div key={g.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">{g.label}</span>
+                        <span className="font-medium">{Math.min(g.current, g.goal)}/{g.goal}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className={`${g.color} h-2 rounded-full transition-all duration-500`}
+                          style={{ width: `${Math.min((g.current / g.goal) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ── Saved Hadiths Tab ────────────────────────── */}
+          <TabsContent value="saved">
+            <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Heart className="h-5 w-5" />
-                  Recent Saved
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Bookmark className="h-5 w-5 text-blue-500" />
+                  Saved Hadiths
+                  <Badge variant="secondary" className="ml-auto">{savedHadiths.length}</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {savedHadiths.slice(0, 5).map((hadith) => (
-                    <div key={hadith.id} className="p-3 border rounded-lg">
-                      <p className="text-sm font-medium line-clamp-2">
-                        {hadith.english?.text || hadith.arabic}
+                {savedHadiths.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground">
+                    <BookMarked className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No saved hadiths yet</p>
+                    <p className="text-sm mt-1">Browse collections and save hadiths you love</p>
+                    <Link to="/">
+                      <Button className="mt-4" variant="outline" size="sm">Browse Hadiths</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedHadiths.slice(0, 10).map((h: any) => (
+                      <div key={h.id} className="p-4 rounded-xl bg-muted/30 border hover:border-primary/30 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-right text-lg leading-loose font-arabic text-foreground line-clamp-2">{h.arabic}</p>
+                            <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{h.english?.text || h.english}</p>
+                            {(h.book || h.reference?.book) && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-xs">{h.book || h.reference?.book}</Badge>
+                                {h.reference?.hadith && <span className="text-xs text-muted-foreground">#{h.reference.hadith}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {savedHadiths.length > 10 && (
+                      <p className="text-center text-sm text-muted-foreground pt-2">
+                        +{savedHadiths.length - 10} more saved hadiths
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {hadith.book} - {hadith.chapter}
-                      </p>
-                    </div>
-                  ))}
-                  {savedHadiths.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No saved hadiths yet
-                    </p>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+
+          {/* ── Activity Tab ─────────────────────────────── */}
+          <TabsContent value="activity">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-5 w-5 text-green-500" /> Recent Activity
+                  <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Live
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recentActivity.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground">
+                    <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No activity yet</p>
+                    <p className="text-sm mt-1">Start reading and interacting with hadiths</p>
+                  </div>
+                ) : (
+                  <div className="relative space-y-0">
+                    {recentActivity.map((a: any, i: number) => (
+                      <div key={a.id} className="flex gap-4 pb-6">
+                        {/* Timeline line */}
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            a.type === 'liked'     ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30' :
+                            a.type === 'shared'    ? 'bg-green-100 text-green-600 dark:bg-green-900/30' :
+                            a.type === 'commented' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30' :
+                            'bg-blue-100 text-blue-600 dark:bg-blue-900/30'
+                          }`}>
+                            {a.type === 'liked'     && <Heart className="h-4 w-4" />}
+                            {a.type === 'shared'    && <Share2 className="h-4 w-4" />}
+                            {a.type === 'commented' && <MessageSquare className="h-4 w-4" />}
+                            {a.type === 'read'      && <BookOpen className="h-4 w-4" />}
+                            {!a.type               && <Star className="h-4 w-4" />}
+                          </div>
+                          {i < recentActivity.length - 1 && (
+                            <div className="w-0.5 flex-1 bg-border mt-1" />
+                          )}
+                        </div>
+                        <div className="flex-1 pb-2">
+                          <p className="text-sm font-medium capitalize">{a.type || 'Activity'}</p>
+                          {a.hadithText && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{a.hadithText}</p>}
+                          {a.book && <Badge variant="outline" className="text-xs mt-1">{a.book}</Badge>}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {a.timestamp instanceof Date ? a.timestamp.toLocaleString() : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Settings Tab ─────────────────────────────── */}
+          <TabsContent value="settings">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Account Info */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <User className="h-5 w-5" /> Account Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { label: 'Display Name', value: displayName },
+                    { label: 'Email',        value: profile?.email },
+                    { label: 'Role',         value: profile?.role?.charAt(0).toUpperCase() + (profile?.role?.slice(1) || '') },
+                    { label: 'Status',       value: profile?.status?.charAt(0).toUpperCase() + (profile?.status?.slice(1) || '') },
+                    { label: 'Member Since', value: formatDate(profile?.createdAt) },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between py-2 border-b border-muted last:border-0">
+                      <span className="text-sm text-muted-foreground">{item.label}</span>
+                      <span className="text-sm font-medium">{item.value || '—'}</span>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setEditOpen(true)}>
+                    <Edit3 className="h-4 w-4 mr-2" /> Edit Profile
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Preferences */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Settings className="h-5 w-5" /> Preferences
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[
+                    { icon: Bell,  label: 'Notifications', value: profile?.preferences?.notifications ? 'On' : 'Off' },
+                    { icon: Globe, label: 'Language',      value: 'English' },
+                    { icon: Lock,  label: 'Privacy',       value: 'Standard' },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <item.icon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{item.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">{item.value}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
+
+                  <Separator className="my-2" />
+
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" /> Sign Out
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

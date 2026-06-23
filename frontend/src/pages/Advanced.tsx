@@ -35,13 +35,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ShareDialog } from "@/components/ShareDialog";
 import VoiceRecorder from "@/components/VoiceRecorder";
+import VoiceSearch from "@/components/VoiceSearch";
+import FileUpload from "@/components/FileUpload";
 import { HadithSearchBar } from "@/components/HadithSearchBar";
 import { fetchRandomHadith } from "@/lib/hadithService";
 import { getDailyHadith, forceRefreshDailyHadith } from "@/utils/dailyHadith";
-import { VoiceSearch } from "@/components/VoiceSearch";
-import { FileUpload } from "@/components/FileUpload";
+import { UserOnboarding } from "@/components/UserOnboarding";
+import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
+import { testApiConnection, testAiApiConnection } from "@/lib/hadithApiService";
 
 type Hadith = {
   id: number;
@@ -70,23 +73,20 @@ type Recording = {
 const Advanced = () => {
   // State management
   const [searchText, setSearchText] = useState("");
-  const [selectedBook, setSelectedBook] = useState("");
-  const [selectedAuthor, setSelectedAuthor] = useState("");
-  const [selectedNarrator, setSelectedNarrator] = useState("");
   const [hadith, setHadith] = useState<Hadith | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'search' | 'recite' | 'saved'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'recite'>('search');
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   const [isAiSearch, setIsAiSearch] = useState(true);
-  const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [loadingRecordings, setLoadingRecordings] = useState(false);
-  const [activeRecordingId, setActiveRecordingId] = useState<string | number | null>(null);
 
   // Hooks
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Onboarding hook
+  const { shouldShowOnboarding, skipOnboarding } = useUserOnboarding('/advanced');
 
   // Load saved hadiths from localStorage on component mount
   useEffect(() => {
@@ -104,85 +104,52 @@ const Advanced = () => {
     }
   }, []);
 
+  // Test API connections
+  const testApiConnections = async () => {
+    console.log('Testing API connections...');
+    
+    try {
+      const normalApiWorking = await testApiConnection();
+      const aiApiWorking = await testAiApiConnection();
+      
+      console.log('Normal API working:', normalApiWorking);
+      console.log('AI API working:', aiApiWorking);
+      
+      if (!normalApiWorking) {
+        toast({
+          title: 'API Connection Issue',
+          description: 'Normal search API is not responding. Please check the backend server.',
+          variant: 'destructive'
+        });
+      }
+      
+      if (!aiApiWorking) {
+        toast({
+          title: 'AI API Connection Issue',
+          description: 'AI search API is not responding. Please check the backend server.',
+          variant: 'destructive'
+        });
+      }
+      
+      if (normalApiWorking && aiApiWorking) {
+        console.log('All API connections are working properly!');
+      }
+    } catch (error) {
+      console.error('API connection test failed:', error);
+      toast({
+        title: 'API Connection Test Failed',
+        description: 'Unable to connect to the backend server. Please check if the server is running.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Save hadiths to localStorage when they change
   useEffect(() => {
     if (savedHadiths.length > 0) {
       localStorage.setItem('savedHadiths', JSON.stringify(savedHadiths));
     }
   }, [savedHadiths]);
-
-  useEffect(() => {
-    if (user && activeTab === 'recite') {
-      loadRecordings();
-    }
-  }, [user, activeTab]);
-
-  const loadRecordings = async () => {
-    if (!user) return;
-    try {
-      setLoadingRecordings(true);
-      let querySnapshot;
-
-      try {
-        // Attempt ordered query (requires composite index)
-        const q = query(
-          collection(db, "recordings"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
-        querySnapshot = await getDocs(q);
-      } catch (indexError) {
-        console.warn("Ordered query failed (possibly missing index), falling back to simple query:", indexError);
-        // Fallback: Get all recordings for user and sort manually in-memory
-        const qSimple = query(
-          collection(db, "recordings"),
-          where("userId", "==", user.uid)
-        );
-        querySnapshot = await getDocs(qSimple);
-      }
-
-      const fetchedRecordings: Recording[] = [];
-      querySnapshot.forEach((doc) => {
-        fetchedRecordings.push({ id: doc.id, ...doc.data() } as Recording);
-      });
-
-      // Sort in-memory to ensure correct order regardless of index status
-      fetchedRecordings.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
-        return timeB - timeA;
-      });
-
-      setRecordings(fetchedRecordings);
-    } catch (err) {
-      console.error("Error loading recordings:", err);
-      toast({
-        title: "Load Error",
-        description: "Failed to load your recordings. Please try refreshing.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingRecordings(false);
-    }
-  };
-
-  const handleDeleteRecording = async (recordingId: string) => {
-    try {
-      await deleteDoc(doc(db, "recordings", recordingId));
-      setRecordings(prev => prev.filter(r => r.id !== recordingId));
-      toast({
-        title: "Deleted",
-        description: "Recording removed successfully.",
-      });
-    } catch (err) {
-      console.error("Error deleting recording:", err);
-      toast({
-        title: "Error",
-        description: "Failed to delete recording.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const loadPracticeHadith = async () => {
     try {
@@ -219,41 +186,58 @@ const Advanced = () => {
   }, [activeTab, hadith]);
 
   const handleSearch = () => {
-    const query = searchText || selectedBook || selectedAuthor || selectedNarrator;
+    console.log('Advanced search triggered with text:', searchText);
+    console.log('AI search mode:', isAiSearch);
+    
+    const query = searchText.trim();
     if (!query) {
       toast({
         title: 'Search Empty',
-        description: 'Please enter some text or select from dropdowns to search for hadiths.',
+        description: 'Please enter some text to search for hadiths.',
         variant: 'default',
       });
       return;
     }
 
+    // Check if it's a natural language query and enable AI mode
+    const shouldUseAi = isNaturalLanguageQuery(query);
+    console.log('Natural language query detected:', shouldUseAi);
+
+    console.log('Navigating to search results with query:', query);
     const params = new URLSearchParams();
     params.set('q', query);
-    if (isAiSearch) params.set('ai', 'true');
-    navigate(`/search-results?${params.toString()}`);
+    
+    if (shouldUseAi) params.set('ai', 'true');
+    
+    const searchUrl = `/search-results?${params.toString()}`;
+    console.log('Search URL:', searchUrl);
+    
+    navigate(searchUrl);
   };
 
-  const handleBookSelect = (value: string) => {
-    setSelectedBook(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
-  };
-
-  const handleAuthorSelect = (value: string) => {
-    setSelectedAuthor(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
-  };
-
-  const handleNarratorSelect = (value: string) => {
-    setSelectedNarrator(value);
-    const newSearchText = searchText ? `${searchText} ${value}` : value;
-    setSearchText(newSearchText);
-    navigate(`/search-results?q=${encodeURIComponent(newSearchText)}`);
+  // Helper function to detect natural language queries
+  const isNaturalLanguageQuery = (query: string): boolean => {
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Check if it's a question
+    const questionIndicators = ['?', 'what', 'when', 'where', 'who', 'why', 'how', 'is', 'are', 'was', 'were', 'will', 'can', 'could', 'should', 'would'];
+    const hasQuestionWord = questionIndicators.some(indicator => lowerQuery.includes(indicator));
+    
+    // Check if it's a sentence (multiple words, contains verbs, etc.)
+    const sentenceIndicators = ['please', 'tell', 'me', 'show', 'find', 'search', 'look', 'get', 'give', 'help', 'want', 'need', 'like', 'know', 'understand', 'explain'];
+    const hasSentenceWord = sentenceIndicators.some(indicator => lowerQuery.includes(indicator));
+    
+    // Check if it's longer than typical keyword search
+    const isLongQuery = query.split(' ').length > 3;
+    
+    // Check if it contains natural language patterns
+    const hasNaturalPattern = lowerQuery.includes('hadith about') || 
+                              lowerQuery.includes('prophet') || 
+                              lowerQuery.includes('islamic') ||
+                              lowerQuery.includes('teaching') ||
+                              lowerQuery.includes('story');
+    
+    return hasQuestionWord || hasSentenceWord || isLongQuery || hasNaturalPattern;
   };
 
   const handleSaveHadith = (hadithToSave: Hadith) => {
@@ -284,22 +268,6 @@ const Advanced = () => {
         description: 'The hadith has been added to your collection.',
       });
       return updated;
-    });
-  };
-
-  const handleRemoveSaved = (id: number) => {
-    setSavedHadiths(prev => {
-      const updated = prev.filter(h => h.id !== id);
-      // Clear localStorage if no more saved hadiths
-      if (updated.length === 0) {
-        localStorage.removeItem('savedHadiths');
-      }
-      return updated;
-    });
-
-    toast({
-      title: 'Removed',
-      description: 'Hadith has been removed from your collection.',
     });
   };
 
@@ -350,15 +318,6 @@ const Advanced = () => {
                 <Mic className="mr-2 h-4 w-4" />
                 Practice Recitation
               </Button>
-              <Button
-                variant="ghost"
-                className={`rounded-none border-b-2 ${activeTab === 'saved' ? 'border-primary' : 'border-transparent'}`}
-                onClick={() => setActiveTab('saved')}
-                disabled={savedHadiths.length === 0}
-              >
-                <Bookmark className="mr-2 h-4 w-4" />
-                My Collection {savedHadiths.length > 0 && `(${savedHadiths.length})`}
-              </Button>
             </div>
           </div>
 
@@ -368,7 +327,7 @@ const Advanced = () => {
               <CardHeader>
                 <CardTitle>Advanced Hadith Search</CardTitle>
                 <CardDescription>
-                  Please type in the gist of the hadith or select any of the below criteria to ensure accurate search results.
+                  Please type in the gist of the hadith to search for accurate results.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -376,93 +335,39 @@ const Advanced = () => {
                   <div className="relative">
                     <Textarea
                       placeholder="Enter Hadith gist here..."
-                      className="bg-input border-border min-h-[80px] resize-none pr-24"
+                      className="bg-input border-border min-h-[80px] resize-none pr-20"
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSearch();
+                        }
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSearch();
+                        }
+                      }}
                     />
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                      <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Select value={selectedBook} onValueChange={handleBookSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Book Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="Sahih al-Bukhari" className="text-[rgb(178,92,27)]">Sahih al-Bukhari</SelectItem>
-                        <SelectItem value="Sahih Muslim" className="text-[rgb(178,92,27)]">Sahih Muslim</SelectItem>
-                        <SelectItem value="Sunan an-Nasa'i" className="text-[rgb(178,92,27)]">Sunan an-Nasa'i</SelectItem>
-                        <SelectItem value="Sunan Abi Dawud" className="text-[rgb(178,92,27)]">Sunan Abi Dawud</SelectItem>
-                        <SelectItem value="Jami' at-Tirmidhi" className="text-[rgb(178,92,27)]">Jami' at-Tirmidhi</SelectItem>
-                        <SelectItem value="Sunan Ibn Majah" className="text-[rgb(178,92,27)]">Sunan Ibn Majah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedAuthor} onValueChange={handleAuthorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Author's Name" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        <SelectItem value="Imam al-Bukhari">Imam al-Bukhaari</SelectItem>
-                        <SelectItem value="Imam Muslim">Imam Muslim</SelectItem>
-                        <SelectItem value="Imam Abu Dawood">Imam Abu Dawood</SelectItem>
-                        <SelectItem value="Imam al-Tirmidhi">Imam al-Tirmidhi</SelectItem>
-                        <SelectItem value="Imam al-Nasaa'i">Imam al-Nasaa'i</SelectItem>
-                        <SelectItem value="Imam Ibn Maajah">Imam Ibn Maajah</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={selectedNarrator} onValueChange={handleNarratorSelect}>
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="Narrator's Names" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50 max-h-[300px]">
-                        <SelectItem value="Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Hurairah (Abdur-Rahmaan)(radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Abbaas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)" className="text-[rgb(178,92,27)]">Aa'ishah Siddeeqa (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="Abdullaah Ibn Umar (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abdullaah Ibn Umar (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Jaabir Ibn Abdullaah (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Anas Ibn Maalik (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Anas Ibn Maalik (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)" className="text-[rgb(178,92,27)]">Abu Sa'eed al-Khudree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)">Abdullaah Ibn Amr Ibn al-Aas (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Alee Ibn Abee Taalib (radi-Allaahu 'anhu)">Alee Ibn Abee Taalib (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Umar Ibn al-Khattaab (radi-Allaahu 'anhu)">Umar Ibn al-Khattaab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)">Abu Bakr as-Siddeeq (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)">Uthmaan Ibn Affaan Dhun-Noorain (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Umm Salamah (radi-Allaahu 'anhaa)">Umm Salamah (radi-Allaahu 'anhaa)</SelectItem>
-                        <SelectItem value="Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)">Abu Moosaa al-Asha'aree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)">Abu Dharr al-Ghaffaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)">Abu Ayyoob al-Ansaaree (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)">Ubayy Ibn Ka'ab (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)">Mu'aadh Ibn Jabal (radi-Allaahu 'anhu)</SelectItem>
-                        <SelectItem value="Saalim Ibn Abdullaah Ibn Umar" className="text-[rgb(124,6,6)]">Saalim Ibn Abdullaah Ibn Umar</SelectItem>
-                        <SelectItem value="Urwah Ibn Zubair" className="text-[rgb(124,6,6)]">Urwah Ibn Zubair</SelectItem>
-                        <SelectItem value="Sa'eed Ibn al-Mussayab" className="text-[rgb(124,6,6)]">Sa'eed Ibn al-Mussayab</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* AI Search Toggle */}
-                  <div
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors"
-                    style={{ backgroundColor: isAiSearch ? 'rgba(16, 185, 129, 0.1)' : 'transparent', border: isAiSearch ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}
-                    onClick={() => setIsAiSearch(!isAiSearch)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isAiSearch}
-                      onChange={() => setIsAiSearch(!isAiSearch)}
-                      className="w-4 h-4 accent-emerald-500"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="font-medium text-sm">Search with Agentic AI</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground ml-7">Get intelligent, summarized answers powered by AI</p>
+                    {/* Voice + Upload buttons */}
+                    <div className="absolute right-2 top-2 flex items-center gap-1">
+                      <VoiceSearch
+                        onTranscript={(text) =>
+                          setSearchText((prev) => (prev + " " + text).trim())
+                        }
+                      />
+                      <FileUpload
+                        onExtractedText={(text) => {
+                          setSearchText(text.trim());
+                          // Auto-trigger AI search immediately after upload
+                          const params = new URLSearchParams();
+                          params.set("q", text.trim());
+                          params.set("ai", "true");
+                          navigate(`/search-results?${params.toString()}`);
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -470,14 +375,7 @@ const Advanced = () => {
                     className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                     onClick={handleSearch}
                   >
-                    {isAiSearch ? (
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" />
-                        AI Search Hadiths
-                      </div>
-                    ) : (
-                      'Search Hadiths'
-                    )}
+                    Search Hadiths
                   </Button>
                 </div>
               </CardContent>
@@ -496,7 +394,7 @@ const Advanced = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <VoiceRecorder hadith={hadith || undefined} onSaveSuccess={loadRecordings} />
+                    <VoiceRecorder hadith={hadith || undefined} />
                   </CardContent>
                 </Card>
 
@@ -514,150 +412,7 @@ const Advanced = () => {
                   </Card>
                 )}
               </div>
-
-              <div className="space-y-6">
-                <Card className="bg-card shadow-lg h-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5 text-primary" />
-                      My Recorded Recitations
-                    </CardTitle>
-                    <CardDescription>
-                      Listen back to your saved practices.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingRecordings ? (
-                      <div className="flex justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : recordings.length > 0 ? (
-                      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-                        {recordings.map((rec) => (
-                          <div key={rec.id} className="flex flex-col p-3 rounded-lg border bg-accent/5 hover:bg-accent/10 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <h4 className="font-medium text-sm">{rec.book}</h4>
-                                <p className="text-xs text-muted-foreground">Hadith #{rec.hadithNumber}</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => handleDeleteRecording(rec.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <audio src={rec.fileUrl} controls className="h-8 flex-1" />
-                              <a
-                                href={rec.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </div>
-
-                            <div className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              {rec.createdAt?.toDate ? rec.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <Mic className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                        <p>No recordings yet. Start practicing!</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
             </div>
-          )}
-
-          {/* Saved Hadiths Tab */}
-          {activeTab === 'saved' && (
-            <Card className="bg-card shadow-lg">
-              <CardHeader>
-                <CardTitle>My Hadith Collection</CardTitle>
-                <CardDescription>
-                  Your saved hadiths for easy access and practice
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {savedHadiths.length > 0 ? (
-                  <div className="space-y-4">
-                    {savedHadiths.map((savedHadith) => (
-                      <Card key={savedHadith.id} className="relative overflow-hidden">
-                        <CardContent className="p-6">
-                          <div className="absolute top-2 right-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleRemoveSaved(savedHadith.id)}
-                              title="Remove from collection"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="text-right text-xl leading-loose font-arabic mb-4">
-                            {savedHadith.arabic}
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Narrated by:</span> {savedHadith.english.narrator}
-                            </p>
-                            <p className="text-foreground">{savedHadith.english.text}</p>
-                            <div className="text-sm text-muted-foreground">
-                              Reference: {savedHadith.bookName || `Book ${savedHadith.reference.book}`},
-                              Hadith {savedHadith.reference.hadith}
-                              {savedHadith.chapter && ` • ${savedHadith.chapter}`}
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 mt-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setActiveRecordingId(activeRecordingId === savedHadith.id ? null : savedHadith.id)}
-                              className={activeRecordingId === savedHadith.id ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"}
-                            >
-                              <Mic className="mr-2 h-4 w-4" />
-                              Practice
-                            </Button>
-                          </div>
-
-                          {activeRecordingId === savedHadith.id && (
-                            <div className="mt-4 pt-4 border-t animate-in slide-in-from-top-2 duration-200">
-                              <VoiceRecorder hadith={savedHadith} onSaveSuccess={loadRecordings} />
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-1">No saved hadiths yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Save hadiths to your collection to access them here later.
-                    </p>
-                    <Button onClick={() => setActiveTab('search')}>
-                      <Search className="mr-2 h-4 w-4" />
-                      Search Hadiths
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           )}
 
           {/* Daily Hadith Section */}
@@ -722,8 +477,8 @@ const Advanced = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setActiveRecordingId(activeRecordingId === hadith.id ? null : hadith.id)}
-                      className={activeRecordingId === hadith.id ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"}
+                      onClick={() => console.log('Practice recitation')}
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       <Mic className="mr-2 h-4 w-4" />
                       Practice
@@ -766,11 +521,6 @@ const Advanced = () => {
                       )}
                     </Button>
                   </div>
-                  {activeRecordingId === hadith.id && (
-                    <div className="mt-4 pt-4 border-t animate-in slide-in-from-top-2 duration-200">
-                      <VoiceRecorder hadith={hadith} onSaveSuccess={loadRecordings} />
-                    </div>
-                  )}
                 </div>
               ) : null}
             </CardContent>
@@ -819,6 +569,14 @@ const Advanced = () => {
           </div>
         </div>
       </main>
+
+      {/* User Onboarding */}
+      {shouldShowOnboarding && (
+        <UserOnboarding 
+          currentPage="/advanced" 
+          onClose={skipOnboarding} 
+        />
+      )}
     </div>
   );
 };

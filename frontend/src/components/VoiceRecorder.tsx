@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Play, Pause, RefreshCw, Save, Share2, Loader2, Check } from 'lucide-react';
+import { Mic, Square, Play, Pause, RefreshCw, Share2, Check } from 'lucide-react';
 import { Button } from './ui/button';
-import { storage, db, auth } from '@/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface VoiceRecorderProps {
@@ -16,17 +13,14 @@ interface VoiceRecorderProps {
       hadith: number | string;
     };
   };
-  onSaveSuccess?: () => void;
 }
 
-export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderProps) {
+export default function VoiceRecorder({ hadith }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState('');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [downloadLink, setDownloadLink] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   const { toast } = useToast();
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -57,7 +51,6 @@ export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderPr
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setRecordingTime(0);
-      setIsSaved(false);
       setDownloadLink('');
 
       timerRef.current = window.setInterval(() => {
@@ -79,56 +72,6 @@ export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderPr
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!audioBlob || !auth.currentUser) {
-      toast({
-        title: 'Login Required',
-        description: 'Please log in to save your recordings.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const userId = auth.currentUser.uid;
-      const fileName = `recitations/${userId}/${Date.now()}.wav`;
-      const storageRef = ref(storage, fileName);
-
-      // Simple upload without custom Promise wrapper to avoid hangs
-      const uploadResult = await uploadBytesResumable(storageRef, audioBlob);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
-
-      await addDoc(collection(db, 'recordings'), {
-        userId,
-        hadithId: hadith?.id || 'manual',
-        book: hadith?.bookName || 'Unknown Book',
-        hadithNumber: hadith?.reference?.hadith || 'Unknown',
-        chapter: hadith?.chapter || '',
-        fileUrl: downloadURL,
-        createdAt: serverTimestamp(),
-      });
-
-      setDownloadLink(downloadURL);
-      setIsSaved(true);
-      toast({
-        title: 'Success!',
-        description: 'Recording saved and ready to share.',
-      });
-
-      if (onSaveSuccess) onSaveSuccess();
-    } catch (err) {
-      console.error('Upload error:', err);
-      toast({
-        title: 'Save Failed',
-        description: err instanceof Error ? err.message : 'Failed to save recording.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -160,7 +103,6 @@ export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderPr
     setAudioURL('');
     setAudioBlob(null);
     setRecordingTime(0);
-    setIsSaved(false);
   };
 
   useEffect(() => {
@@ -216,21 +158,6 @@ export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderPr
 
           <div className="flex flex-wrap items-center justify-center gap-3 mb-2 w-full">
             <Button
-              onClick={handleSave}
-              disabled={isUploading || isSaved}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white flex-1 min-w-[120px] max-w-[160px]"
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isSaved ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {isSaved ? 'Saved' : 'Save'}
-            </Button>
-
-            <Button
               onClick={handleShare}
               variant="outline"
               className="flex items-center gap-2 flex-1 min-w-[120px] max-w-[160px]"
@@ -247,7 +174,7 @@ export default function VoiceRecorder({ hadith, onSaveSuccess }: VoiceRecorderPr
             className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground mt-2"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            New Recording
+            Record Again
           </Button>
         </div>
       )}

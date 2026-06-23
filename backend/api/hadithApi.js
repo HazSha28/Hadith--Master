@@ -49,6 +49,70 @@ const formatHadith = (row) => {
 // AI Search endpoint (Agentic AI)
 router.post('/search/ai', aiSearchHandler);
 
+// POST /api/hadith/explain — AI explanation for a single hadith
+router.post('/explain', async (req, res) => {
+  try {
+    const { arabic, english, narrator, book, hadithNumber } = req.body;
+
+    if (!english) {
+      return res.status(400).json({ success: false, error: 'Hadith text is required' });
+    }
+
+    const genAI = process.env.GOOGLE_API_KEY
+      ? new (await import('@google/generative-ai')).GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+      : null;
+    const geminiModel = genAI ? genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }) : null;
+
+    const prompt = `You are a knowledgeable and respectful Islamic scholar explaining a hadith to a learner.
+
+Hadith Details:
+- Book: ${book || 'Unknown'}
+- Number: ${hadithNumber || 'Unknown'}
+- Narrator: ${narrator || 'Unknown'}
+- Arabic Text: ${arabic || ''}
+- English Translation: ${english}
+
+Please provide a clear, concise explanation covering:
+1. The main lesson or message of this hadith
+2. The context or occasion (if known)
+3. How a Muslim can apply this in daily life
+
+Keep the explanation under 250 words. Use plain text only — no markdown, no asterisks, no bold. Be respectful and encouraging in tone.`;
+
+    let explanation = '';
+
+    if (geminiModel) {
+      const result = await geminiModel.generateContent(prompt);
+      explanation = result.response.text()
+        .replace(/\*\*|__/g, '')
+        .replace(/^\s*[*]\s+/gm, '- ')
+        .trim();
+    } else {
+      // Fallback to Groq/Llama
+      const { default: OpenAI } = await import('openai');
+      const groq = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: 'https://api.groq.com/openai/v1',
+      });
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 400,
+        temperature: 0.6,
+      });
+      explanation = response.choices[0].message.content
+        .replace(/\*\*|__/g, '')
+        .replace(/^\s*[*]\s+/gm, '- ')
+        .trim();
+    }
+
+    res.json({ success: true, explanation });
+  } catch (error) {
+    console.error('Explain endpoint error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate explanation' });
+  }
+});
+
 // GET /api/hadith - Get all hadiths with pagination and filtering
 router.get('/', async (req, res) => {
   try {
@@ -252,14 +316,39 @@ router.get('/search', async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (parseInt(page) - 1) * limitNum;
 
+    // Sanitize query — strip quotes and punctuation that break plainto_tsquery
+    const sanitizedQuery = query
+      .replace(/["""'']/g, '')
+      .replace(/[^\w\s\-\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Detect Arabic content in query
+    const hasArabic = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(sanitizedQuery);
+    const arabicPart = sanitizedQuery.match(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s]+/g)?.join(' ').trim() || '';
+    const englishPart = sanitizedQuery.replace(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/g, '').trim();
+
     let whereClauses = [];
     let queryArgs = [];
     let argIndex = 1;
 
-    // Use Postgres plainto_tsquery for flexible natural language search
-    whereClauses.push(`(to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${argIndex}) OR h.english_translation ILIKE $${argIndex + 1})`);
-    queryArgs.push(query, `%${query}%`);
-    argIndex += 2;
+    // Build search clause based on language content
+    if (hasArabic && arabicPart && englishPart) {
+      // Strip diacritics from DB arabic_text before ILIKE comparison
+      whereClauses.push(`(regexp_replace(h.arabic_text, '[\\u064B-\\u065F\\u0610-\\u061A\\u06D6-\\u06DC\\u06DF-\\u06E8\\u06EA-\\u06ED\\u200F\\u200E\\u202A-\\u202E]', '', 'g') ILIKE $${argIndex} OR to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${argIndex + 1}) OR h.english_translation ILIKE $${argIndex + 2})`);
+      queryArgs.push(`%${arabicPart}%`, englishPart, `%${englishPart}%`);
+      argIndex += 3;
+    } else if (hasArabic && arabicPart) {
+      // Arabic only — strip diacritics before matching
+      whereClauses.push(`regexp_replace(h.arabic_text, '[\\u064B-\\u065F\\u0610-\\u061A\\u06D6-\\u06DC\\u06DF-\\u06E8\\u06EA-\\u06ED\\u200F\\u200E\\u202A-\\u202E]', '', 'g') ILIKE $${argIndex}`);
+      queryArgs.push(`%${arabicPart}%`);
+      argIndex += 1;
+    } else {
+      // English full-text + ILIKE fallback
+      whereClauses.push(`(to_tsvector('english', h.english_translation) @@ plainto_tsquery('english', $${argIndex}) OR h.english_translation ILIKE $${argIndex + 1})`);
+      queryArgs.push(sanitizedQuery, `%${sanitizedQuery}%`);
+      argIndex += 2;
+    }
 
     if (book) {
       whereClauses.push(`(h.book_id = $${argIndex} OR b.name = $${argIndex})`);
@@ -281,8 +370,8 @@ router.get('/search', async (req, res) => {
 
     const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // Total count for search
-    const countSql = `SELECT COUNT(*) FROM hadiths h ${whereSql}`;
+    // Total count for search — always JOIN books so b.name is available in WHERE
+    const countSql = `SELECT COUNT(*) FROM hadiths h JOIN books b ON h.book_id = b.book_id ${whereSql}`;
     const countRes = await pool.query(countSql, queryArgs);
     const totalHadiths = parseInt(countRes.rows[0].count);
 

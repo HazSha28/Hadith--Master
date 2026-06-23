@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -14,7 +14,9 @@ import {
   BookOpen,
   User,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Crown,
+  X
 }
   from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +29,25 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { ShareDialog } from '@/components/ShareDialog';
 import { getHadithsByBook, searchHadiths } from '@/lib/hadithApiService';
+import { logActivity } from '@/lib/activityLogger';
+import { saveHadithToFirestore, removeHadithFromFirestore, likeHadithInFirestore, shareHadithInFirestore } from '@/lib/savedHadithsService';
+
+// ── AI Explanation usage tracking ──────────────────────────────
+const AI_EXPLAIN_KEY  = 'ai_explain_count';
+const AI_EXPLAIN_MAX  = 5;
+
+function getExplainCount(): number {
+  return parseInt(localStorage.getItem(AI_EXPLAIN_KEY) || '0', 10);
+}
+function incrementExplainCount(): number {
+  const next = getExplainCount() + 1;
+  localStorage.setItem(AI_EXPLAIN_KEY, String(next));
+  return next;
+}
+function hasExplainLeft(): boolean {
+  return getExplainCount() < AI_EXPLAIN_MAX;
+}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 
 // Types
 interface Hadith {
@@ -117,12 +138,26 @@ const CollectionExplore: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalHadiths, setTotalHadiths] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [authenticityFilter, setAuthenticityFilter] = useState('all');
   const [sortBy, setSortBy] = useState('number');
   const [likedHadiths, setLikedHadiths] = useState<Set<string>>(new Set());
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedHadith, setSelectedHadith] = useState<Hadith | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce: update debouncedSearchTerm 400ms after user stops typing
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1);
+    }, 400);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchTerm]);
 
   const bookInfo = bookSlug ? BOOK_METADATA[bookSlug as BookSlug] : null;
 
@@ -133,9 +168,9 @@ const CollectionExplore: React.FC = () => {
     setLoading(true);
     try {
       let response;
-      if (searchTerm) {
+      if (debouncedSearchTerm) {
         // Use search endpoint if search term is present
-        response = await searchHadiths(searchTerm, {
+        response = await searchHadiths(debouncedSearchTerm, {
           book: bookInfo.id,
           page: currentPage,
           limit: 10
@@ -175,7 +210,7 @@ const CollectionExplore: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [bookSlug, bookInfo, currentPage, searchTerm, toast]);
+  }, [bookSlug, bookInfo, currentPage, debouncedSearchTerm, toast]);
 
   // Handle hash navigation for jumping to specific hadith
   useEffect(() => {
@@ -223,72 +258,57 @@ const CollectionExplore: React.FC = () => {
   // Handle like toggle
   const handleLike = (hadithId: string) => {
     if (!user) {
-      toast({
-        title: 'Login Required',
-        description: 'Please login to like hadiths',
-        variant: 'destructive'
-      });
+      toast({ title: 'Login Required', description: 'Please login to like hadiths', variant: 'destructive' });
       return;
     }
 
     const newLiked = new Set(likedHadiths);
-    if (newLiked.has(hadithId)) {
-      newLiked.delete(hadithId);
-    } else {
-      newLiked.add(hadithId);
-    }
+    const isNowLiked = !newLiked.has(hadithId);
+    if (isNowLiked) { newLiked.add(hadithId); } else { newLiked.delete(hadithId); }
 
     setLikedHadiths(newLiked);
     localStorage.setItem(`liked-hadiths-${user.id}`, JSON.stringify([...newLiked]));
+
+    // Firestore: update liked flag + log activity
+    likeHadithInFirestore(user.id, hadithId, isNowLiked);
+    if (isNowLiked) {
+      const h = hadiths.find(h => h.id === hadithId);
+      logActivity(user.id, 'liked', { hadithId, text: h?.english, book: h?.book });
+    } else {
+      logActivity(user.id, 'unliked', { hadithId });
+    }
   };
 
   // Handle save toggle
   const handleSave = (hadith: Hadith) => {
     if (!user) {
-      toast({
-        title: 'Login Required',
-        description: 'Please login to save hadiths',
-        variant: 'destructive'
-      });
+      toast({ title: 'Login Required', description: 'Please login to save hadiths', variant: 'destructive' });
       return;
     }
 
     setSavedHadiths(prev => {
-      // Check if hadith is already saved
       const exists = prev.some(h => h.id === hadith.id);
       if (exists) {
-        // Remove from saved
         const updated = prev.filter(h => h.id !== hadith.id);
-        // Update localStorage
-        if (updated.length === 0) {
-          localStorage.removeItem('savedHadiths');
-        } else {
-          localStorage.setItem('savedHadiths', JSON.stringify(updated));
-        }
-
-        toast({
-          title: 'Hadith Removed',
-          description: 'Hadith has been removed from your collection.'
-        });
+        updated.length === 0 ? localStorage.removeItem('savedHadiths') : localStorage.setItem('savedHadiths', JSON.stringify(updated));
+        // Firestore remove + activity
+        removeHadithFromFirestore(user.id, hadith.id);
+        logActivity(user.id, 'unsaved', { hadithId: hadith.id });
+        toast({ title: 'Hadith Removed', description: 'Removed from your collection.' });
         return updated;
       } else {
-        // Add to saved with status
         const hadithToSave = {
           ...hadith,
           status: 'saved' as const,
-          reference: {
-            book: parseInt(hadith.number) || 1,
-            hadith: parseInt(hadith.number) || 1
-          },
+          reference: { book: parseInt(hadith.number) || 1, hadith: parseInt(hadith.number) || 1 },
           bookName: hadith.book
         };
         const updated = [...prev, hadithToSave];
         localStorage.setItem('savedHadiths', JSON.stringify(updated));
-
-        toast({
-          title: 'Hadith Saved',
-          description: 'Hadith has been added to your collection.'
-        });
+        // Firestore save + activity
+        saveHadithToFirestore(user.id, hadithToSave);
+        logActivity(user.id, 'saved', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
+        toast({ title: 'Hadith Saved', description: 'Added to your collection.' });
         return updated;
       }
     });
@@ -298,6 +318,11 @@ const CollectionExplore: React.FC = () => {
   const handleShare = (hadith: Hadith) => {
     setSelectedHadith(hadith);
     setShareDialogOpen(true);
+    // Log share activity + update Firestore
+    if (user) {
+      shareHadithInFirestore(user.id, hadith.id);
+      logActivity(user.id, 'shared', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
+    }
   };
 
   // Get authenticity badge color
@@ -310,10 +335,13 @@ const CollectionExplore: React.FC = () => {
     }
   };
 
-  // Handle search
+  // Handle search — debounced 400ms so API isn't called on every keystroke
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    setCurrentPage(1);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      // loadHadiths will be triggered by the useEffect watching searchTerm
+    }, 400);
   };
 
   // Handle pagination
@@ -459,6 +487,7 @@ const CollectionExplore: React.FC = () => {
             </p>
             <Button onClick={() => {
               setSearchTerm('');
+              setDebouncedSearchTerm('');
               setAuthenticityFilter('all');
             }}>
               Clear Filters
@@ -473,6 +502,7 @@ const CollectionExplore: React.FC = () => {
                   hadith={hadith}
                   isLiked={likedHadiths.has(hadith.id)}
                   isSaved={savedHadiths.some(h => h.id === hadith.id)}
+                  searchTerm={debouncedSearchTerm}
                   onLike={() => handleLike(hadith.id)}
                   onSave={() => handleSave(hadith)}
                   onShare={() => handleShare(hadith)}
@@ -532,11 +562,37 @@ const CollectionExplore: React.FC = () => {
   );
 };
 
+// Highlight matching search term inside a text string
+const HighlightText: React.FC<{ text: string; term: string }> = ({ text, term }) => {
+  if (!term.trim()) return <>{text}</>;
+
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === term.toLowerCase() ? (
+          <mark
+            key={i}
+            className="bg-yellow-200 text-yellow-900 dark:bg-yellow-500 dark:text-yellow-950 rounded px-0.5"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+};
+
 // Hadith Card Component
 interface HadithCardProps {
   hadith: Hadith;
   isLiked: boolean;
   isSaved: boolean;
+  searchTerm: string;
   onLike: () => void;
   onSave: () => void;
   onShare: () => void;
@@ -547,6 +603,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
   hadith,
   isLiked,
   isSaved,
+  searchTerm,
   onLike,
   onSave,
   onShare,
@@ -635,7 +692,9 @@ const HadithCard: React.FC<HadithCardProps> = ({
         {/* Narrator */}
         <div className="flex items-center gap-2 mb-4">
           <User className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Narrated by {hadith.narrator}</span>
+          <span className="text-sm text-muted-foreground">
+            Narrated by <HighlightText text={hadith.narrator} term={searchTerm} />
+          </span>
         </div>
 
         {/* Arabic Text */}
@@ -648,7 +707,7 @@ const HadithCard: React.FC<HadithCardProps> = ({
         {/* English Translation */}
         <div className="border-t pt-4">
           <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-            {hadith.english}
+            <HighlightText text={hadith.english} term={searchTerm} />
           </p>
         </div>
 

@@ -3,9 +3,7 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, BookOpen, Mic, Bookmark, Share2 } from "lucide-react";
-import { VoiceSearch } from "@/components/VoiceSearch";
-import { FileUpload } from "@/components/FileUpload";
+import { Search, BookOpen, Bookmark, Share2 } from "lucide-react";
 import { ShareDialog } from "@/components/ShareDialog";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -79,10 +77,6 @@ const Index = () => {
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
                       />
-                      <div className="absolute right-4 top-4 flex flex-col gap-2">
-                        <VoiceSearch onTranscript={(text) => setSearchText(prev => prev + " " + text)} />
-                        <FileUpload onExtractedText={(text) => setSearchText(prev => prev + " " + text)} />
-                      </div>
                     </div>
 
                     {/* Filter Options */}

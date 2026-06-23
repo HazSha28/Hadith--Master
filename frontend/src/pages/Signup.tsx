@@ -45,12 +45,18 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      await signUp(email, password, fullName);
+      const result = await signUp(email, password, fullName);
+      
+      // Wait a moment for the profile to be created
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       toast({
         title: "Success",
-        description: "Account created successfully!",
+        description: "Account created successfully! Please wait for admin approval.",
       });
-      navigate("/");
+      
+      // Navigate to test page to verify authentication works
+      navigate("/test-access");
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({

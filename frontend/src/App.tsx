@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ErrorBoundary from "./components/auth/ErrorBoundary";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import AdminProtectedRoute from "./components/auth/AdminProtectedRoute";
+import PublicRoute from "./components/auth/PublicRoute";
 import Index from "@/pages/Index";
 import Beginner from "@/pages/Beginner";
 import Advanced from "@/pages/Advanced";
@@ -27,7 +28,10 @@ import RealTimeChat from "@/components/RealTimeChat";
 import AdminChatDashboard from "@/components/AdminChatDashboard";
 import AdminPanel from "@/components/admin/AdminPanel";
 import AdminSetupGuide from "@/components/admin/AdminSetupGuide";
+import AdminProfile from "@/pages/AdminProfile";
+import BookShowcase from "@/components/BookShowcase";
 import FloatingChatButton from "./components/chat/FloatingChatButton";
+import ProfileDebug from "@/components/ProfileDebug";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +73,11 @@ const App = () => (
                       <main><Profile /></main>
                     </ProtectedRoute>
                   } />
+                  <Route path="/admin/profile" element={
+                    <AdminProtectedRoute>
+                      <main><AdminProfile /></main>
+                    </AdminProtectedRoute>
+                  } />
                   <Route path="/book/:bookName" element={
                     <ProtectedRoute>
                       <main><BookCollection /></main>
@@ -109,12 +118,27 @@ const App = () => (
                       <main><AdminSetupGuide /></main>
                     </ProtectedRoute>
                   } />
+                  <Route path="/books" element={
+                    <ProtectedRoute>
+                      <main><BookShowcase /></main>
+                    </ProtectedRoute>
+                  } />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/help" element={<Help />} />
+                  <Route path="/debug-profile" element={
+                    <ProtectedRoute>
+                      <main><ProfileDebug /></main>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/test-access" element={
+                    <PublicRoute>
+                      <main><div className="p-6"><h1>Test Access - Profile Not Required</h1><p>If you can see this, your authentication is working!</p></div></main>
+                    </PublicRoute>
+                  } />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>

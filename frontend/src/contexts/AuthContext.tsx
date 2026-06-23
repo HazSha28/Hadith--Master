@@ -12,7 +12,7 @@ import {
   browserLocalPersistence,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { createUserData, updateLastLogin, UserData } from '../services/userService';
 
@@ -54,46 +54,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Fetch or create user profile
-  const fetchProfile = async (firebaseUser: User) => {
+  const fetchProfile = async (firebaseUser: User, retryCount = 0) => {
     try {
+      console.log(`Fetching profile for user ${firebaseUser.uid}, attempt ${retryCount + 1}`);
       const userRef = doc(db, 'users', firebaseUser.uid);
       let snap = await getDoc(userRef);
 
       if (!snap.exists()) {
+        console.log('Profile does not exist, creating new profile...');
         // Create profile if it doesn't exist
         const newProfile: UserData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || '',
-          createdAt: new Date(),
-          lastLoginAt: new Date(),
+          createdAt: serverTimestamp() as any,
+          lastLoginAt: serverTimestamp() as any,
           status: 'pending',
           role: 'user',
           preferences: { theme: 'light', notifications: true }
         };
+        
         await setDoc(userRef, newProfile);
+        console.log('Profile created in Firestore');
+        
+        // Wait a moment for the document to be available
+        await new Promise(resolve => setTimeout(resolve, 1000));
         snap = await getDoc(userRef);
+        
+        if (!snap.exists()) {
+          if (retryCount < 2) {
+            console.log('Profile not found after creation, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return fetchProfile(firebaseUser, retryCount + 1);
+          } else {
+            throw new Error('Failed to create user profile after multiple attempts');
+          }
+        }
       } else {
+        console.log('Profile exists, updating last login...');
         // Update last login
         await updateLastLogin(firebaseUser.uid);
       }
 
       const data = snap.data() as UserData;
-      setProfile({
+      const userProfile: UserProfile = {
         ...data,
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
         fullName: data.displayName || ''
-      } as UserProfile);
+      };
+      
+      setProfile(userProfile);
+      console.log('User profile loaded successfully:', firebaseUser.uid);
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      if (retryCount < 2) {
+        console.log('Retrying profile fetch...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return fetchProfile(firebaseUser, retryCount + 1);
+      }
+      // Don't set profile to null on error, keep existing state
     }
   };
 
   // Auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user ? `User ${user.uid}` : 'No user');
       setCurrentUser(user);
       if (user) {
+        console.log('Fetching profile for user:', user.uid);
         await fetchProfile(user);
+        console.log('Profile fetch completed for user:', user.uid);
       } else {
         setProfile(null);
       }
@@ -111,12 +143,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sign up
   const signUp = async (email: string, password: string, fullName: string) => {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(result.user, { displayName: fullName });
-
-    // Initial profile creation is handled by the onAuthStateChanged listener -> fetchProfile
-    // but we can also trigger it explicitly here if needed.
-    return result;
+    try {
+      console.log('Starting signup process for:', email);
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('Firebase auth user created:', result.user.uid);
+      
+      await updateProfile(result.user, { displayName: fullName });
+      console.log('Firebase auth profile updated with displayName:', fullName);
+      
+      // Profile creation is handled by the onAuthStateChanged listener -> fetchProfile
+      // but we can also trigger it explicitly here if needed.
+      return result;
+    } catch (error) {
+      console.error('Error during signup:', error);
+      throw error;
+    }
   };
 
   // Google Sign In

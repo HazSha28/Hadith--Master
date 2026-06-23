@@ -19,7 +19,7 @@ try {
   serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
   
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert(serviceAccount),//admin.credential.cert() creates a credential from the JSON key,
     projectId: serviceAccount.project_id
   });
   
@@ -83,7 +83,7 @@ export async function batchWrite(collectionName, documents) {
     const currentBatch = db.batch();
     
     for (const doc of batchDocs) {
-      const docRef = collectionRef.doc(); // Auto-generate ID
+      const docRef = collectionRef.doc(); // Auto-generate ID  
       currentBatch.set(docRef, doc);
       results.push(docRef.id);
     }

@@ -8,9 +8,11 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Allow all ngrok and external tunnel hosts
+    allowedHosts: ['all', 'outgrow-jailhouse-exclaim.ngrok-free.dev', '.ngrok-free.dev', '.ngrok.io'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
       },
     },

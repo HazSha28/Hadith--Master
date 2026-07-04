@@ -22,7 +22,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { searchHadiths } from '@/lib/hadithService';
 
 interface Hadith {
@@ -104,7 +104,7 @@ const BookExplorer: React.FC = () => {
   const { bookName } = useParams<{ bookName: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   
   const [hadiths, setHadiths] = useState<Hadith[]>([]);
   const [filteredHadiths, setFilteredHadiths] = useState<Hadith[]>([]);

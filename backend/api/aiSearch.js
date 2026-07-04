@@ -86,8 +86,9 @@ async function searchHadithsInDb({ query, book_id, grade, narrator, author, char
     }
 
     if (book_id) {
+        // Match against book_id OR book name (with underscore→space conversion)
         sql += ` AND (h.book_id = $${paramIndex} OR b.name ILIKE $${paramIndex + 1})`;
-        params.push(book_id, `%${book_id}%`);
+        params.push(book_id, `%${book_id.replace(/_/g, ' ')}%`);
         paramIndex += 2;
     }
 

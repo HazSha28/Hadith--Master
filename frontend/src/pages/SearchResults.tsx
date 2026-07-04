@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, Loader2, Share2, Filter, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -80,7 +80,7 @@ const SearchResults = () => {
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [aiSources, setAiSources] = useState<any[]>([]);
   const [isAiMode, setIsAiMode] = useState(aiSearchParam);
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast: uiToast } = useToast();
   const [savedHadiths, setSavedHadiths] = useState<any[]>([]);
   const [detailHadith, setDetailHadith] = useState<Hadith | null>(null);
@@ -452,44 +452,36 @@ const SearchResults = () => {
               <Card className="bg-card">
                 <CardContent className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Book</label>
-                      <select
-                        value={selectedBook}
-                        onChange={(e) => {
-                          setSelectedBook(e.target.value);
-                          handleSearch(); // Auto-trigger search when filter changes
-                        }}
-                        className="w-full p-2 border rounded-md bg-background"
-                      >
-                        <option value="">All Books</option>
-                        <option value="Sahih al-Bukhari">Sahih al-Bukhari</option>
-                        <option value="Sahih Muslim">Sahih Muslim</option>
-                        <option value="Sunan an-Nasa'i">Sunan an-Nasa'i</option>
-                        <option value="Sunan Abi Dawud">Sunan Abi Dawud</option>
-                        <option value="Jami' at-Tirmidhi">Jami' at-Tirmidhi</option>
-                        <option value="Sunan Ibn Majah">Sunan Ibn Majah</option>
-                      </select>
-                    </div>
 
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Category</label>
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => {
-                          setSelectedCategory(e.target.value);
-                          handleSearch(); // Auto-trigger search when filter changes
-                        }}
-                        className="w-full p-2 border rounded-md bg-background"
-                      >
-                        <option value="">All Categories</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.name}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* Book filter — only shown on general search, not when scoped to a specific book */}
+                    {!bookParam ? (
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Book</label>
+                        <select
+                          value={selectedBook}
+                          onChange={(e) => {
+                            setSelectedBook(e.target.value);
+                            handleSearch();
+                          }}
+                          className="w-full p-2 border rounded-md bg-background"
+                        >
+                          <option value="">All Books</option>
+                          <option value="sahih_bukhari">Sahih al-Bukhari</option>
+                          <option value="sahih_muslim">Sahih Muslim</option>
+                          <option value="sunan_nasai">Sunan an-Nasai</option>
+                          <option value="sunan_abu_dawud">Sunan Abu Dawud</option>
+                          <option value="jami_tirmidhi">Jami at-Tirmidhi</option>
+                          <option value="sunan_ibn_majah">Sunan Ibn Majah</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                        <span className="text-sm font-medium text-primary">📖 Searching within:</span>
+                        <span className="text-sm font-semibold capitalize">
+                          {bookParam.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
+                      </div>
+                    )}
 
                     <div>
                       <label className="text-sm font-medium mb-2 block">Author</label>
@@ -591,7 +583,6 @@ const SearchResults = () => {
                       variant="outline" 
                       onClick={() => {
                         setSelectedBook('');
-                        setSelectedCategory('');
                         setSelectedAuthor('');
                         setSelectedNarrator('');
                         setSelectedCharacters('');

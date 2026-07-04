@@ -39,8 +39,8 @@ export interface Category {
   hadithCount: number;
 }
 
-// API Base URL - using our local API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+// API Base URL — empty string means use Vite proxy (same host, works for both local and ngrok)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {

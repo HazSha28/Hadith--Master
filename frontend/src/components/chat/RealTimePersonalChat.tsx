@@ -20,7 +20,7 @@ import {
   Video,
   Info
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import websocketService from '@/services/websocketService';
 
@@ -62,7 +62,7 @@ const RealTimePersonalChat: React.FC<RealTimePersonalChatProps> = ({
   onUserSelect, 
   showUserList = true 
 }) => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<RealTimeMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');

@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ShareDialog } from "@/components/ShareDialog";
 import VoiceRecorder from "@/components/VoiceRecorder";
@@ -82,7 +82,7 @@ const Advanced = () => {
 
   // Hooks
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   // Onboarding hook

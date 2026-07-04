@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { MessageCircle, Users, CreditCard } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import CommunityCenterChat from './CommunityCenterChat';
 
 const FloatingChatButton: React.FC = () => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) {

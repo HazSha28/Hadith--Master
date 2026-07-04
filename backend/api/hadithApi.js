@@ -6,9 +6,18 @@ import cors from 'cors';
 import pkg from 'pg';
 const { Pool } = pkg;
 import dotenv from 'dotenv';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { aiSearchHandler } from './aiSearch.js';
 
 dotenv.config();
+
+// ── Gemini initialisation (shared across endpoints) ──────────
+const genAI = process.env.GOOGLE_API_KEY
+  ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+  : null;
+const geminiFlash = genAI
+  ? genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  : null;
 
 const router = express.Router();
 
@@ -49,7 +58,7 @@ const formatHadith = (row) => {
 // AI Search endpoint (Agentic AI)
 router.post('/search/ai', aiSearchHandler);
 
-// POST /api/hadith/explain — AI explanation for a single hadith
+// POST /api/hadith/explain — AI explanation using Gemini
 router.post('/explain', async (req, res) => {
   try {
     const { arabic, english, narrator, book, hadithNumber } = req.body;
@@ -58,57 +67,44 @@ router.post('/explain', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Hadith text is required' });
     }
 
-    const genAI = process.env.GOOGLE_API_KEY
-      ? new (await import('@google/generative-ai')).GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
-      : null;
-    const geminiModel = genAI ? genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }) : null;
+    if (!geminiFlash) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI explanation unavailable — GOOGLE_API_KEY not configured'
+      });
+    }
 
     const prompt = `You are a knowledgeable and respectful Islamic scholar explaining a hadith to a learner.
 
 Hadith Details:
 - Book: ${book || 'Unknown'}
-- Number: ${hadithNumber || 'Unknown'}
+- Hadith Number: ${hadithNumber || 'Unknown'}
 - Narrator: ${narrator || 'Unknown'}
-- Arabic Text: ${arabic || ''}
+- Arabic Text: ${arabic || '(not provided)'}
 - English Translation: ${english}
 
-Please provide a clear, concise explanation covering:
+Provide a clear, concise explanation covering:
 1. The main lesson or message of this hadith
-2. The context or occasion (if known)
-3. How a Muslim can apply this in daily life
+2. The context or occasion if known
+3. How a Muslim can apply this teaching in daily life
 
-Keep the explanation under 250 words. Use plain text only — no markdown, no asterisks, no bold. Be respectful and encouraging in tone.`;
+Rules:
+- Keep the explanation under 250 words
+- Use plain text only — no markdown, no asterisks, no bold formatting
+- Use simple dashes (-) for any bullet points
+- Be respectful, warm, and encouraging in tone`;
 
-    let explanation = '';
+    const result = await geminiFlash.generateContent(prompt);
+    const explanation = result.response.text()
+      .replace(/\*\*|__/g, '')           // strip bold markers
+      .replace(/^\s*[*]\s+/gm, '- ')     // convert * bullets to -
+      .trim();
 
-    if (geminiModel) {
-      const result = await geminiModel.generateContent(prompt);
-      explanation = result.response.text()
-        .replace(/\*\*|__/g, '')
-        .replace(/^\s*[*]\s+/gm, '- ')
-        .trim();
-    } else {
-      // Fallback to Groq/Llama
-      const { default: OpenAI } = await import('openai');
-      const groq = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 400,
-        temperature: 0.6,
-      });
-      explanation = response.choices[0].message.content
-        .replace(/\*\*|__/g, '')
-        .replace(/^\s*[*]\s+/gm, '- ')
-        .trim();
-    }
-
+    console.log(`✅ Gemini explanation generated for hadith ${hadithNumber} (${book})`);
     res.json({ success: true, explanation });
+
   } catch (error) {
-    console.error('Explain endpoint error:', error);
+    console.error('Explain endpoint error:', error.message);
     res.status(500).json({ success: false, error: 'Failed to generate explanation' });
   }
 });
@@ -351,9 +347,10 @@ router.get('/search', async (req, res) => {
     }
 
     if (book) {
-      whereClauses.push(`(h.book_id = $${argIndex} OR b.name = $${argIndex})`);
-      queryArgs.push(book);
-      argIndex++;
+      // Match against book_id (e.g. "sahih_bukhari") OR book name with ILIKE for flexibility
+      whereClauses.push(`(h.book_id = $${argIndex} OR b.name ILIKE $${argIndex + 1})`);
+      queryArgs.push(book, `%${book.replace(/_/g, ' ')}%`);
+      argIndex += 2;
     }
 
     if (category) {

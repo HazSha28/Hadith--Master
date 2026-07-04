@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search,
-  Filter,
   Heart,
   Bookmark,
   Share2,
@@ -16,16 +15,18 @@ import {
   CheckCircle,
   AlertCircle,
   Crown,
-  X
-}
-  from 'lucide-react';
+  X,
+  Flag,
+  Send
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { ShareDialog } from '@/components/ShareDialog';
 import { getHadithsByBook, searchHadiths } from '@/lib/hadithApiService';
@@ -33,8 +34,9 @@ import { logActivity } from '@/lib/activityLogger';
 import { saveHadithToFirestore, removeHadithFromFirestore, likeHadithInFirestore, shareHadithInFirestore } from '@/lib/savedHadithsService';
 
 // ── AI Explanation usage tracking ──────────────────────────────
-const AI_EXPLAIN_KEY  = 'ai_explain_count';
-const AI_EXPLAIN_MAX  = 5;
+const AI_EXPLAIN_KEY = 'ai_explain_count';
+const AI_EXPLAIN_MAX = 5;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 function getExplainCount(): number {
   return parseInt(localStorage.getItem(AI_EXPLAIN_KEY) || '0', 10);
@@ -47,7 +49,6 @@ function incrementExplainCount(): number {
 function hasExplainLeft(): boolean {
   return getExplainCount() < AI_EXPLAIN_MAX;
 }
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 
 // Types
 interface Hadith {
@@ -128,7 +129,7 @@ type BookSlug = keyof typeof BOOK_METADATA;
 const CollectionExplore: React.FC = () => {
   const { bookSlug } = useParams<{ bookSlug: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   // State      
@@ -609,121 +610,250 @@ const HadithCard: React.FC<HadithCardProps> = ({
   onShare,
   getAuthenticityColor
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying]           = useState(false);
+  const [explanation, setExplanation]       = useState<string | null>(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [showExplain, setShowExplain]       = useState(false);
+  const [usesLeft, setUsesLeft]             = useState(AI_EXPLAIN_MAX - getExplainCount());
+  const [reportOpen, setReportOpen]         = useState(false);
+  const [reportText, setReportText]         = useState('');
+  const [reportSent, setReportSent]         = useState(false);
+  const { toast } = useToast();
 
   const handleVoicePlay = () => {
     setIsPlaying(!isPlaying);
-    // In production, this would trigger text-to-speech
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(hadith.english);
       utterance.lang = 'en-US';
-      if (isPlaying) {
-        window.speechSynthesis.cancel();
-      } else {
-        window.speechSynthesis.speak(utterance);
-      }
+      if (isPlaying) { window.speechSynthesis.cancel(); }
+      else { window.speechSynthesis.speak(utterance); }
     }
   };
 
+  const handleExplain = async () => {
+    // If already showing, toggle off
+    if (showExplain) { setShowExplain(false); return; }
+
+    // Check premium gate
+    if (!hasExplainLeft()) {
+      toast({
+        title: '✨ Premium Feature',
+        description: `You've used all ${AI_EXPLAIN_MAX} free AI explanations. Upgrade to Premium for unlimited access.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Already fetched for this card
+    if (explanation) { setShowExplain(true); return; }
+
+    setExplainLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/hadith/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          arabic:       hadith.arabic,
+          english:      hadith.english,
+          narrator:     hadith.narrator,
+          book:         hadith.book,
+          hadithNumber: hadith.number,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Explanation request failed');
+      const data = await res.json();
+
+      if (data.success && data.explanation) {
+        setExplanation(data.explanation);
+        setShowExplain(true);
+        const remaining = AI_EXPLAIN_MAX - incrementExplainCount();
+        setUsesLeft(remaining);
+        if (remaining === 0) {
+          toast({
+            title: '✨ Last free explanation used',
+            description: 'Upgrade to Premium for unlimited AI explanations.',
+          });
+        }
+      }
+    } catch {
+      toast({ title: 'Failed to get explanation', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setExplainLoading(false);
+    }
+  };
+
+  const handleReportSubmit = () => {
+    if (!reportText.trim()) return;
+    // In production this would send to Firestore/email
+    console.log('Issue reported for hadith', hadith.id, ':', reportText);
+    setReportSent(true);
+    setTimeout(() => {
+      setReportOpen(false);
+      setReportSent(false);
+      setReportText('');
+    }, 2000);
+  };
+
   return (
-    <Card className="group hover:shadow-lg transition-shadow duration-200">
-      <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <h3 className="font-semibold text-lg">{hadith.book}</h3>
-              <p className="text-sm text-muted-foreground">Hadith {hadith.number}</p>
+    <>
+      <Card className="group hover:shadow-lg transition-shadow duration-200">
+        <CardContent className="p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div>
+                <h3 className="font-semibold text-lg">{hadith.book}</h3>
+                <p className="text-sm text-muted-foreground">Hadith {hadith.number}</p>
+              </div>
+              <Badge className={getAuthenticityColor(hadith.authenticity)}>
+                {hadith.authenticity.charAt(0).toUpperCase() + hadith.authenticity.slice(1)}
+              </Badge>
             </div>
-            <Badge className={getAuthenticityColor(hadith.authenticity)}>
-              {hadith.authenticity.charAt(0).toUpperCase() + hadith.authenticity.slice(1)}
-            </Badge>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={onLike}
+                className={isLiked ? 'text-red-500' : 'text-muted-foreground'}>
+                <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+              </Button>
+
+              <Button variant="ghost" size="sm" onClick={onSave}
+                className={isSaved ? 'text-blue-500' : 'text-muted-foreground'}>
+                <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
+              </Button>
+
+              <Button variant="ghost" size="sm" onClick={onShare} className="text-muted-foreground">
+                <Share2 className="h-4 w-4" />
+              </Button>
+
+              <Button variant="ghost" size="sm" onClick={handleVoicePlay} className="text-muted-foreground">
+                <Volume2 className={`h-4 w-4 ${isPlaying ? 'text-blue-500' : ''}`} />
+              </Button>
+
+              {/* AI Explanation button removed */}
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onLike}
-              className={isLiked ? 'text-red-500' : 'text-muted-foreground'}
-            >
-              <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onSave}
-              className={isSaved ? 'text-blue-500' : 'text-muted-foreground'}
-            >
-              <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onShare}
-              className="text-muted-foreground"
-            >
-              <Share2 className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleVoicePlay}
-              className="text-muted-foreground"
-            >
-              <Volume2 className={`h-4 w-4 ${isPlaying ? 'text-blue-500' : ''}`} />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              title="AI Explanation (Premium)"
-            >
-              <Sparkles className="h-4 w-4" />
-            </Button>
+          {/* Narrator */}
+          <div className="flex items-center gap-2 mb-4">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              Narrated by <HighlightText text={hadith.narrator} term={searchTerm} />
+            </span>
           </div>
-        </div>
 
-        {/* Narrator */}
-        <div className="flex items-center gap-2 mb-4">
-          <User className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            Narrated by <HighlightText text={hadith.narrator} term={searchTerm} />
-          </span>
-        </div>
-
-        {/* Arabic Text */}
-        <div className="mb-6">
-          <p className="text-right text-2xl leading-loose font-arabic text-gray-800 dark:text-gray-200">
-            {hadith.arabic}
-          </p>
-        </div>
-
-        {/* English Translation */}
-        <div className="border-t pt-4">
-          <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-            <HighlightText text={hadith.english} term={searchTerm} />
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CheckCircle className="h-3 w-3" />
-            <span>Authenticity verified</span>
+          {/* Arabic Text */}
+          <div className="mb-6">
+            <p className="text-right text-2xl leading-loose font-arabic text-gray-800 dark:text-gray-200">
+              {hadith.arabic}
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <AlertCircle className="h-3 w-3" />
-            <span>Report issue</span>
+
+          {/* English Translation */}
+          <div className="border-t pt-4">
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <HighlightText text={hadith.english} term={searchTerm} />
+            </p>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* AI Explanation Panel */}
+          {showExplain && explanation && (
+            <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-700">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">AI Explanation</span>
+                  <Badge variant="outline" className="text-xs border-yellow-300 text-yellow-700">
+                    {usesLeft} free left
+                  </Badge>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setShowExplain(false)} className="h-6 w-6 p-0">
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <p className="text-sm text-yellow-900 dark:text-yellow-100 leading-relaxed whitespace-pre-line">
+                {explanation}
+              </p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle className="h-3 w-3" />
+              <span>Authenticity verified</span>
+            </div>
+            <button
+              onClick={() => setReportOpen(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Flag className="h-3 w-3" />
+              <span>Report issue</span>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Report Issue Dialog */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Flag className="h-4 w-4 text-destructive" />
+              Report an Issue
+            </DialogTitle>
+          </DialogHeader>
+          {reportSent ? (
+            <div className="py-6 text-center">
+              <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
+              <p className="font-medium">Report submitted</p>
+              <p className="text-sm text-muted-foreground mt-1">Thank you for helping us improve.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="p-3 rounded-lg bg-muted/40 text-sm">
+                <p className="font-medium">{hadith.book} — Hadith {hadith.number}</p>
+                <p className="text-muted-foreground line-clamp-2 mt-1">{hadith.english}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">What's the issue?</label>
+                <select
+                  className="w-full p-2 border rounded-md bg-background text-sm mb-3"
+                  value={reportText.startsWith('Type:') ? reportText.split('\n')[0].replace('Type: ', '') : ''}
+                  onChange={(e) => setReportText(`Type: ${e.target.value}\n`)}
+                >
+                  <option value="">Select issue type...</option>
+                  <option value="Incorrect translation">Incorrect translation</option>
+                  <option value="Wrong hadith number">Wrong hadith number</option>
+                  <option value="Missing text">Missing text</option>
+                  <option value="Wrong authenticity grade">Wrong authenticity grade</option>
+                  <option value="Formatting issue">Formatting issue</option>
+                  <option value="Other">Other</option>
+                </select>
+                <textarea
+                  className="w-full p-3 border rounded-lg resize-none min-h-[80px] bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Describe the issue in detail..."
+                  value={reportText.includes('\n') ? reportText.split('\n').slice(1).join('\n') : reportText}
+                  onChange={(e) => {
+                    const type = reportText.split('\n')[0];
+                    setReportText(type ? `${type}\n${e.target.value}` : e.target.value);
+                  }}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={() => setReportOpen(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleReportSubmit} disabled={!reportText.trim()}>
+                  <Send className="h-3 w-3 mr-1" /> Submit Report
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

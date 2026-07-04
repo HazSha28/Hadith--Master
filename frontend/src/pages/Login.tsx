@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +16,10 @@ const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  if (user) {
-    navigate("/");
-  }
+  // Redirect if already logged in — must be in useEffect, not render body
+  useEffect(() => {
+    if (user) navigate("/");
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

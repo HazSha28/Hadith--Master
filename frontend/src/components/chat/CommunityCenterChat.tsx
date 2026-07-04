@@ -3,444 +3,318 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, Users, MessageCircle, Bell, CheckCircle, Crown, CreditCard, Star, Shield } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { Send, Users, Loader2, Trash2, Shield } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import {
+  collection, addDoc, serverTimestamp, query,
+  orderBy, limit, onSnapshot, deleteDoc, doc,
+  updateDoc, arrayUnion, arrayRemove, Timestamp,
+} from 'firebase/firestore';
+import { db } from '@/firebase';
+import { isAdminEmail } from '@/config/adminConfig';
 
+/* ─── Types ─────────────────────────────────────────────── */
 interface Message {
   id: string;
-  userId: string;
-  username: string;
-  content: string;
-  timestamp: Date;
-  isOwn?: boolean;
-  isAI?: boolean;
-}
-
-interface User {
-  id: string;
-  username: string;
-  isOnline?: boolean;
-  isPremium?: boolean;
-}
-
-interface UserProfile {
   uid: string;
-  email: string;
-  fullName: string;
-  credits: number;
-  isPremium: boolean;
-  createdAt: string;
+  displayName: string;
+  text: string;
+  createdAt: Timestamp | null;
+  isAdmin?: boolean;
+  reactions?: Record<string, string[]>; // emoji → [uid, uid, ...]
 }
 
+/* ─── Constants ──────────────────────────────────────────── */
+const REACTIONS = ['👍', '❤️', '😄', '🤲'];
+const MESSAGES_LIMIT = 100;
+const MAX_LENGTH = 500;
+
+/* ─── Helpers ────────────────────────────────────────────── */
+const getInitials = (name: string) =>
+  name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+const formatTime = (ts: Timestamp | null) => {
+  if (!ts) return '';
+  return ts.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+/* ─── Component ──────────────────────────────────────────── */
 const CommunityCenterChat: React.FC = () => {
-  const { user } = useAuth();
+  const { currentUser, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [username, setUsername] = useState('');
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Simulated user profile data
+  const [messages, setMessages]   = useState<Message[]>([]);
+  const [text, setText]           = useState('');
+  const [sending, setSending]     = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [onlineCount, setOnlineCount] = useState(1);
+
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
+
+  const isAdmin = profile?.role === 'admin' || isAdminEmail(currentUser?.email);
+  const displayName = profile?.fullName || profile?.displayName || currentUser?.displayName || 'Anonymous';
+
+  /* ── Real-time listener ─────────────────────────────── */
   useEffect(() => {
-    if (user) {
-      // Simulate fetching user profile
-      const mockProfile: UserProfile = {
-        uid: user.uid,
-        email: user.email || '',
-        fullName: user.displayName || 'User',
-        credits: 2, // Start with 2 credits for demo
-        isPremium: false, // Regular user
-        createdAt: new Date().toISOString(),
-      };
-      setUserProfile(mockProfile);
-      setIsConnected(true);
-    }
-  }, [user]);
+    const q = query(
+      collection(db, 'communityChat', 'general', 'messages'),
+      orderBy('createdAt', 'asc'),
+      limit(MESSAGES_LIMIT)
+    );
 
-  // Simulated chat data
-  useEffect(() => {
-    // Simulate online users
-    const mockUsers: User[] = [
-      { id: '1', username: 'Ahmed', isOnline: true, isPremium: true },
-      { id: '2', username: 'Fatima', isOnline: true, isPremium: false },
-      { id: '3', username: 'Mohammed', isOnline: false, isPremium: false },
-      { id: '4', username: 'Aisha', isOnline: true, isPremium: true },
-      { id: '5', username: 'Abdullah', isOnline: true, isPremium: false },
-    ];
-    setOnlineUsers(mockUsers);
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs: Message[] = snap.docs.map(d => ({
+        id: d.id,
+        ...(d.data() as Omit<Message, 'id'>),
+      }));
+      setMessages(msgs);
+      setLoading(false);
+    }, (err) => {
+      console.error('Community chat listener error:', err);
+      setLoading(false);
+    });
 
-    // Simulate initial messages
-    const mockMessages: Message[] = [
-      {
-        id: '1',
-        userId: 'ai',
-        username: 'Islamic Scholar AI',
-        content: 'Assalamu Alaikum! Welcome to the Community Center. How can I help you learn about Hadith today?',
-        timestamp: new Date(Date.now() - 3600000),
-        isOwn: false,
-        isAI: true,
-      },
-      {
-        id: '2',
-        userId: '1',
-        username: 'Ahmed',
-        content: 'Can you explain the importance of Sahih Bukhari in Islamic studies?',
-        timestamp: new Date(Date.now() - 3000000),
-        isOwn: false,
-        isAI: false,
-      },
-      {
-        id: '3',
-        userId: 'ai',
-        username: 'Islamic Scholar AI',
-        content: 'Sahih Bukhari is considered the most authentic collection of hadiths, compiled by Imam al-Bukhari. It contains 7,563 hadiths and is second only to the Quran in authenticity among Sunni Muslims.',
-        timestamp: new Date(Date.now() - 2400000),
-        isOwn: false,
-        isAI: true,
-      },
-    ];
-    setMessages(mockMessages);
+    // Fake online count — in production use Firestore presence
+    setOnlineCount(Math.floor(Math.random() * 8) + 2);
+
+    return () => unsub();
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  /* ── Scroll to bottom on new messages ───────────────── */
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const handleJoinChat = () => {
-    if (!username.trim()) {
-      toast({
-        title: 'Username Required',
-        description: 'Please enter a username to join the chat.',
-        variant: 'destructive',
-      });
+  /* ── Send message ────────────────────────────────────── */
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || !currentUser) return;
+    if (trimmed.length > MAX_LENGTH) {
+      toast({ title: `Message too long (max ${MAX_LENGTH} chars)`, variant: 'destructive' });
       return;
     }
 
-    setIsConnected(true);
-    toast({
-      title: 'Joined Chat',
-      description: `Welcome to the community center, ${username}!`,
-    });
-  };
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    // Check if user is logged in
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    // Check credits
-    if (userProfile && userProfile.credits <= 0) {
-      toast({
-        title: 'Credits Exhausted',
-        description: 'You\'ve used your free enquiries. Please upgrade to Premium to continue.',
-        variant: 'destructive',
+    setSending(true);
+    setText('');
+    try {
+      await addDoc(collection(db, 'communityChat', 'general', 'messages'), {
+        uid:         currentUser.uid,
+        displayName: displayName,
+        text:        trimmed,
+        createdAt:   serverTimestamp(),
+        isAdmin:     isAdmin,
       });
-      return;
+      inputRef.current?.focus();
+    } catch (err) {
+      console.error('Send error:', err);
+      setText(trimmed); // restore on failure
+      toast({ title: 'Failed to send message', variant: 'destructive' });
+    } finally {
+      setSending(false);
     }
+  };
 
-    setIsLoading(true);
+  /* ── Delete message (admins only) ───────────────────── */
+  const handleDelete = async (msgId: string) => {
+    try {
+      await deleteDoc(doc(db, 'communityChat', 'general', 'messages', msgId));
+      toast({ title: 'Message deleted' });
+    } catch {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    }
+  };
 
-    // Simulate API call
-    setTimeout(() => {
-      const message: Message = {
-        id: Date.now().toString(),
-        userId: user.uid,
-        username: user.displayName || username || 'User',
-        content: newMessage.trim(),
-        timestamp: new Date(),
-        isOwn: true,
-        isAI: false,
-      };
-
-      setMessages(prev => [...prev, message]);
-      
-      // Deduct credit
-      if (userProfile) {
-        setUserProfile(prev => prev ? { ...prev, credits: prev.credits - 1 } : null);
-      }
-
-      setNewMessage('');
-      setIsLoading(false);
-      scrollToBottom();
-
-      toast({
-        title: 'Query Submitted',
-        description: 'Your question has been submitted to the community.',
+  /* ── Toggle reaction ────────────────────────────────── */
+  const toggleReaction = async (msgId: string, emoji: string, currentReactions: Record<string, string[]> = {}) => {
+    if (!currentUser) return;
+    const uid = currentUser.uid;
+    const msgRef = doc(db, 'communityChat', 'general', 'messages', msgId);
+    const hasReacted = (currentReactions[emoji] || []).includes(uid);
+    try {
+      await updateDoc(msgRef, {
+        [`reactions.${emoji}`]: hasReacted ? arrayRemove(uid) : arrayUnion(uid),
       });
-    }, 1000);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+    } catch (err) {
+      console.error('Reaction error:', err);
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
-
-  const handleLogin = () => {
-    navigate('/login');
-    setShowLoginModal(false);
-  };
-
-  const handleSignup = () => {
-    navigate('/signup');
-    setShowLoginModal(false);
-  };
-
-  const handleUpgrade = () => {
-    toast({
-      title: 'Premium Features',
-      description: 'Premium features coming soon! You\'ll get unlimited enquiries and exclusive access.',
-    });
-  };
-
-  if (!user) {
+  /* ── Not logged in ───────────────────────────────────── */
+  if (!currentUser) {
     return (
-      <div className="flex flex-col h-[500px] items-center justify-center p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-emerald-200 dark:border-emerald-700">
-            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-emerald-600 dark:text-emerald-400" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Community Center
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Join our Islamic knowledge community to ask questions about Hadith, Islamic studies, and connect with scholars.
-            </p>
-            
-            <div className="space-y-4">
-              <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-4 border border-emerald-200 dark:border-emerald-700">
-                <div className="flex items-center gap-2 mb-2">
-                  <CreditCard className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">Free Enquiries</span>
-                </div>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  <li>• 2 free questions per session</li>
-                  <li>• Community discussions</li>
-                  <li>• AI scholar assistance</li>
-                </ul>
-              </div>
-
-              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-4 border border-amber-200 dark:border-amber-700">
-                <div className="flex items-center gap-2 mb-2">
-                  <Crown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">Premium Access</span>
-                </div>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  <li>• Unlimited enquiries</li>
-                  <li>• Priority responses</li>
-                  <li>• Exclusive content</li>
-                  <li>• Advanced search features</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button 
-                onClick={handleLogin}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                Sign In
-              </Button>
-              <Button 
-                onClick={handleSignup}
-                variant="outline"
-                className="flex-1 border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900"
-              >
-                Sign Up
-              </Button>
-            </div>
-          </div>
+      <div className="flex flex-col items-center justify-center h-full gap-4 p-6 text-center">
+        <Users className="h-12 w-12 text-muted-foreground" />
+        <h3 className="text-lg font-semibold">Join the Community</h3>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Sign in to chat with other learners and share Islamic knowledge.
+        </p>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/login')}>Sign In</Button>
+          <Button variant="outline" onClick={() => navigate('/signup')}>Sign Up</Button>
         </div>
       </div>
     );
   }
 
-  if (userProfile && userProfile.credits <= 0 && !userProfile.isPremium) {
-    return (
-      <div className="flex flex-col h-[500px] items-center justify-center p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-amber-200 dark:border-amber-700">
-            <Shield className="h-12 w-12 mx-auto mb-4 text-amber-600 dark:text-amber-400" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Credits Exhausted
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              You've used your free enquiries. Upgrade to Premium to continue asking questions and unlock unlimited access to our Islamic knowledge community.
-            </p>
-            
-            <div className="bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900 dark:to-orange-900 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-center gap-2">
-                <Crown className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                <span className="text-lg font-bold text-amber-800 dark:text-amber-200">Premium Features</span>
-              </div>
-            </div>
-
-            <Button 
-              onClick={handleUpgrade}
-              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium"
-            >
-              Upgrade to Premium
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  /* ── Main UI ─────────────────────────────────────────── */
   return (
-    <div className="flex flex-col h-[500px] bg-white dark:bg-gray-800">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <div className="flex items-center gap-3">
-          <MessageCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Community Center</h3>
-            <div className="flex items-center gap-2 text-sm">
-              <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <span className="text-gray-600 dark:text-gray-400">
-                ({onlineUsers.filter(u => u.isOnline).length} online)
-              </span>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col h-full bg-background">
 
-        <div className="flex items-center gap-3">
-          {/* Credits Display */}
-          <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-700">
-            <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-              {userProfile?.credits || 0}/5 credits
-            </span>
-          </div>
-
-          {/* Premium Badge */}
-          {userProfile?.isPremium && (
-            <Badge variant="secondary" className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-              <Crown className="h-3 w-3 mr-1" />
-              Premium
-            </Badge>
-          )}
+      {/* ── Sub-header ── */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span>{onlineCount} online</span>
         </div>
+        <span className="text-xs text-muted-foreground">General Discussion</span>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full p-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div 
-                key={message.id} 
-                className={`flex gap-3 mb-4 ${
-                  message.isOwn ? 'flex-row-reverse' : 'flex-row'
-                }`}
-              >
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  message.isAI 
-                    ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white' 
-                    : message.isOwn 
-                    ? 'bg-emerald-600 text-white' 
-                    : 'bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200'
-                }`}>
-                  {message.isAI ? 'AI' : message.username.charAt(0).toUpperCase()}
-                </div>
-                <div className={`max-w-[70%] space-y-1 ${
-                  message.isOwn ? 'items-end' : 'items-start'
-                }`}>
-                  <div className={`text-xs text-gray-500 dark:text-gray-400 ${
-                    message.isOwn ? 'text-right' : 'text-left'
-                  }`}>
-                    {message.isAI ? (
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 text-amber-500" />
-                        {message.username}
+      {/* ── Messages ── */}
+      <ScrollArea className="flex-1 px-4 py-3">
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+            <Users className="h-10 w-10 opacity-30" />
+            <p className="text-sm">No messages yet. Be the first to say Assalamu Alaikum! 👋</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {messages.map((msg) => {
+              const isOwn = msg.uid === currentUser.uid;
+              const reactions = msg.reactions || {};
+              return (
+                <div key={msg.id} className={`flex gap-2 group ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white
+                    ${msg.isAdmin ? 'bg-amber-500' : isOwn ? 'bg-emerald-600' : 'bg-slate-500'}`}>
+                    {getInitials(msg.displayName)}
+                  </div>
+
+                  {/* Bubble + reactions */}
+                  <div className={`max-w-[72%] space-y-0.5 ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
+                    {/* Name + time */}
+                    <div className={`flex items-center gap-1.5 text-xs text-muted-foreground ${isOwn ? 'flex-row-reverse' : ''}`}>
+                      <span className="font-medium">{msg.displayName}</span>
+                      {msg.isAdmin && (
+                        <Badge className="h-4 px-1 text-[10px] bg-amber-100 text-amber-800 border-amber-200">
+                          <Shield className="h-2.5 w-2.5 mr-0.5" />Admin
+                        </Badge>
+                      )}
+                      <span>{formatTime(msg.createdAt)}</span>
+                    </div>
+
+                    {/* Text bubble */}
+                    <div className={`rounded-2xl px-3 py-2 text-sm leading-relaxed break-words
+                      ${isOwn
+                        ? 'bg-emerald-600 text-white rounded-tr-sm'
+                        : msg.isAdmin
+                          ? 'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-100 rounded-tl-sm'
+                          : 'bg-muted rounded-tl-sm'
+                      }`}>
+                      {msg.text}
+                    </div>
+
+                    {/* Reaction picker — appears on hover */}
+                    <div className={`flex items-center gap-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 bg-background border rounded-full px-1.5 py-0.5 shadow-sm">
+                        {REACTIONS.map(emoji => (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReaction(msg.id, emoji, reactions)}
+                            className={`text-sm hover:scale-125 transition-transform px-0.5 rounded ${
+                              (reactions[emoji] || []).includes(currentUser.uid)
+                                ? 'bg-primary/10'
+                                : ''
+                            }`}
+                            title={emoji}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
                       </div>
-                    ) : (
-                      `${message.username} • ${formatTime(message.timestamp)}`
+                    </div>
+
+                    {/* Existing reactions display */}
+                    {Object.keys(reactions).some(e => reactions[e]?.length > 0) && (
+                      <div className={`flex flex-wrap gap-1 mt-0.5 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                        {REACTIONS.filter(e => reactions[e]?.length > 0).map(emoji => {
+                          const uids = reactions[emoji] || [];
+                          const iReacted = uids.includes(currentUser.uid);
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => toggleReaction(msg.id, emoji, reactions)}
+                              className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors
+                                ${iReacted
+                                  ? 'bg-primary/10 border-primary/30 text-primary'
+                                  : 'bg-background border-border hover:bg-muted'
+                                }`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="font-medium">{uids.length}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                  <div className={`rounded-lg p-3 text-sm ${
-                    message.isAI 
-                      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/50 dark:to-teal-900/50 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
-                      : message.isOwn 
-                      ? 'bg-emerald-600 text-white ml-auto' 
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                  }`}>
-                    {message.content}
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-      </div>
 
-      {/* Message Input */}
-      <div className="px-4 pt-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <div className="flex gap-2">
-          <Input
-            placeholder={
-              userProfile && userProfile.credits > 0 
-                ? "Ask about Hadith, Islamic knowledge, or join discussions..." 
-                : "Credits exhausted. Upgrade to Premium to continue."
-            }
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={!user || (userProfile && userProfile.credits <= 0)}
-            className="flex-1"
-          />
-          <Button 
-            onClick={handleSendMessage}
-            disabled={!user || !newMessage.trim() || (userProfile && userProfile.credits <= 0) || isLoading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            {isLoading ? (
-              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-        
-        {/* Upgrade Prompt */}
-        {userProfile && userProfile.credits <= 0 && !userProfile.isPremium && (
-          <div className="mt-3 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              You've used your free enquiries. 
-              <Button 
-                variant="link" 
-                onClick={handleUpgrade}
-                className="text-amber-600 dark:text-amber-400 p-0 h-auto font-medium"
-              >
-                Upgrade to Premium
-              </Button>
-              {' '}for unlimited access.
-            </p>
+                  {/* Delete button */}
+                  {(isOwn || isAdmin) && (
+                    <button
+                      onClick={() => handleDelete(msg.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity self-center text-destructive hover:text-destructive/80 flex-shrink-0"
+                      title="Delete message"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
           </div>
         )}
+      </ScrollArea>
+
+      {/* ── Input ── */}
+      <div className="border-t px-4 py-3 flex gap-2 bg-background">
+        <Input
+          ref={inputRef}
+          placeholder="Share your thoughts... (Enter to send)"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          disabled={sending}
+          maxLength={MAX_LENGTH}
+          className="flex-1"
+        />
+        <Button
+          onClick={handleSend}
+          disabled={!text.trim() || sending}
+          size="icon"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0"
+        >
+          {sending
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Send className="h-4 w-4" />
+          }
+        </Button>
       </div>
+
+      {/* char counter when near limit */}
+      {text.length > MAX_LENGTH * 0.8 && (
+        <div className="px-4 pb-2 text-right text-xs text-muted-foreground">
+          {text.length}/{MAX_LENGTH}
+        </div>
+      )}
     </div>
   );
 };

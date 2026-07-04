@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { BookOpen, Search, Bookmark, ChevronDown, ChevronUp, Users, CheckCircle2, Star, Trophy, Sparkles, Clock, Calendar, Loader2, Trash2, Share2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import VoiceSearch from "@/components/VoiceSearch";
 import FileUpload from "@/components/FileUpload";
@@ -51,7 +51,7 @@ const Beginner = () => {
   const [activeTab, setActiveTab] = useState<'search' | 'collection'>('search');
   const [isGuideExpanded, setIsGuideExpanded] = useState(false);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   // Onboarding hook

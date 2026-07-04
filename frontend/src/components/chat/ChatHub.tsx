@@ -14,7 +14,7 @@ import {
   User,
   HeadphonesIcon
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import CommunityCenterChat from './CommunityCenterChat';
 import RealTimePersonalChat from './RealTimePersonalChat';
 import AdminChat from './AdminChat';
@@ -24,43 +24,31 @@ interface ChatHubProps {
 }
 
 const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [unreadCounts, setUnreadCounts] = useState({
-    community: 3,
-    personal: 5,
-    admin: 1,
+    community: 0,
+    admin: 0,
   });
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    // Reset unread count for the selected tab
     setUnreadCounts(prev => ({ ...prev, [tab]: 0 }));
   };
 
   const getTabIcon = (tab: string) => {
     switch (tab) {
-      case 'community':
-        return <Users className="h-4 w-4" />;
-      case 'personal':
-        return <MessageCircle className="h-4 w-4" />;
-      case 'admin':
-        return <Shield className="h-4 w-4" />;
-      default:
-        return <MessageCircle className="h-4 w-4" />;
+      case 'community': return <Users className="h-4 w-4" />;
+      case 'admin':     return <Shield className="h-4 w-4" />;
+      default:          return <MessageCircle className="h-4 w-4" />;
     }
   };
 
   const getTabLabel = (tab: string) => {
     switch (tab) {
-      case 'community':
-        return 'Community';
-      case 'personal':
-        return 'Personal';
-      case 'admin':
-        return 'Admin Support';
-      default:
-        return tab;
+      case 'community': return 'Community';
+      case 'admin':     return 'Admin Support';
+      default:          return tab;
     }
   };
 
@@ -86,19 +74,11 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <div className="text-left">
-                  <h4 className="font-medium">Personal Messages</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">One-on-one conversations</p>
-                </div>
-              </div>
-              
               <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
                 <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 <div className="text-left">
                   <h4 className="font-medium">Admin Support</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Get help from our team</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Private chat with our admin team</p>
                 </div>
               </div>
             </div>
@@ -153,8 +133,8 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
       <div className="flex-1 overflow-hidden min-h-0">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
           <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4">
-            <TabsList className="grid w-full grid-cols-3 bg-transparent">
-              {(['community', 'personal', 'admin'] as const).map((tab) => (
+            <TabsList className="grid w-full grid-cols-2 bg-transparent">
+              {(['community', 'admin'] as const).map((tab) => (
                 <TabsTrigger
                   key={tab}
                   value={tab}
@@ -164,8 +144,8 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
                     {getTabIcon(tab)}
                     <span className="hidden sm:inline">{getTabLabel(tab)}</span>
                     {unreadCounts[tab as keyof typeof unreadCounts] > 0 && (
-                      <Badge 
-                        variant="destructive" 
+                      <Badge
+                        variant="destructive"
                         className="h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs ml-1"
                       >
                         {unreadCounts[tab as keyof typeof unreadCounts]}
@@ -182,11 +162,7 @@ const ChatHub: React.FC<ChatHubProps> = ({ defaultTab = 'community' }) => {
             <TabsContent value="community" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
               <CommunityCenterChat />
             </TabsContent>
-            
-            <TabsContent value="personal" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <RealTimePersonalChat />
-            </TabsContent>
-            
+
             <TabsContent value="admin" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
               <AdminChat />
             </TabsContent>

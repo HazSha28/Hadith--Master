@@ -99,7 +99,7 @@ export const Header = () => {
             {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
-          {currentUser && <Notifications />}
+          {/* Notifications removed */}
 
           {/* Community Chat */}
           {currentUser && (

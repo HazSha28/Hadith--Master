@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { Send } from "lucide-react";
 
 interface Message {
@@ -13,7 +13,7 @@ interface Message {
 }
 
 export const Chat = () => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,

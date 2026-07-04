@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, BookOpen, Bookmark, Share2 } from "lucide-react";
 import { ShareDialog } from "@/components/ShareDialog";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
@@ -15,7 +15,7 @@ const Index = () => {
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNarrator, setSelectedNarrator] = useState("");
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   const handleSearch = () => {

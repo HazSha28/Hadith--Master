@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface ChatMessage {
@@ -37,7 +37,7 @@ const RealTimeChat = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [escalationReason, setEscalationReason] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   // Auto-scroll to bottom

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,9 +18,10 @@ const Signup = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  if (user) {
-    navigate("/");
-  }
+  // Redirect if already logged in — must be in useEffect, not render body
+  useEffect(() => {
+    if (user) navigate("/");
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,11 +53,9 @@ const Signup = () => {
       
       toast({
         title: "Success",
-        description: "Account created successfully! Please wait for admin approval.",
+        description: "Account created successfully! Welcome to Hadith Master.",
       });
-      
-      // Navigate to test page to verify authentication works
-      navigate("/test-access");
+      navigate("/");
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({

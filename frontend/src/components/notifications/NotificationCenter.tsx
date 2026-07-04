@@ -18,7 +18,7 @@ import {
   Heart,
   ThumbsUp
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import websocketService from '@/services/websocketService';
 
@@ -43,7 +43,7 @@ interface NotificationCenterProps {
 }
 
 const NotificationCenter: React.FC<NotificationCenterProps> = ({ className }) => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);

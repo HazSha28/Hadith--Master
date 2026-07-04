@@ -3,7 +3,7 @@ import { MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import RealTimeChat from '@/components/RealTimeChat';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface FloatingChatButtonProps {
   className?: string;
@@ -12,7 +12,7 @@ interface FloatingChatButtonProps {
 const FloatingChatButton: React.FC<FloatingChatButtonProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
 
   if (!user) {
     return null; // Don't show chat button for non-logged in users

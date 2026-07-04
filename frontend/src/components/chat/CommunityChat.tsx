@@ -10,7 +10,7 @@ import {
   Bell,
   CheckCircle,
 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -29,7 +29,7 @@ interface User {
 }
 
 const CommunityChat: React.FC = () => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);

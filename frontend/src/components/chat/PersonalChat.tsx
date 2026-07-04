@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, Search, User, Crown, Shield, Clock, Check, CheckCheck } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface PersonalMessage {
@@ -43,7 +43,7 @@ const PersonalChat: React.FC<PersonalChatProps> = ({
   onUserSelect, 
   showUserList = true 
 }) => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<PersonalMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');

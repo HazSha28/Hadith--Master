@@ -241,7 +241,7 @@ const CollectionExplore: React.FC = () => {
   // Load user preferences
   useEffect(() => {
     if (user) {
-      const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
+      const liked = localStorage.getItem(`liked-hadiths-${user.uid}`);
       const saved = localStorage.getItem('savedHadiths');
 
       if (liked) setLikedHadiths(new Set(JSON.parse(liked)));
@@ -268,15 +268,15 @@ const CollectionExplore: React.FC = () => {
     if (isNowLiked) { newLiked.add(hadithId); } else { newLiked.delete(hadithId); }
 
     setLikedHadiths(newLiked);
-    localStorage.setItem(`liked-hadiths-${user.id}`, JSON.stringify([...newLiked]));
+    localStorage.setItem(`liked-hadiths-${user.uid}`, JSON.stringify([...newLiked]));
 
     // Firestore: update liked flag + log activity
-    likeHadithInFirestore(user.id, hadithId, isNowLiked);
+    likeHadithInFirestore(user.uid, hadithId, isNowLiked);
     if (isNowLiked) {
       const h = hadiths.find(h => h.id === hadithId);
-      logActivity(user.id, 'liked', { hadithId, text: h?.english, book: h?.book });
+      logActivity(user.uid, 'liked', { hadithId, text: h?.english, book: h?.book });
     } else {
-      logActivity(user.id, 'unliked', { hadithId });
+      logActivity(user.uid, 'unliked', { hadithId });
     }
   };
 
@@ -293,8 +293,8 @@ const CollectionExplore: React.FC = () => {
         const updated = prev.filter(h => h.id !== hadith.id);
         updated.length === 0 ? localStorage.removeItem('savedHadiths') : localStorage.setItem('savedHadiths', JSON.stringify(updated));
         // Firestore remove + activity
-        removeHadithFromFirestore(user.id, hadith.id);
-        logActivity(user.id, 'unsaved', { hadithId: hadith.id });
+        removeHadithFromFirestore(user.uid, hadith.id);
+        logActivity(user.uid, 'unsaved', { hadithId: hadith.id });
         toast({ title: 'Hadith Removed', description: 'Removed from your collection.' });
         return updated;
       } else {
@@ -307,8 +307,8 @@ const CollectionExplore: React.FC = () => {
         const updated = [...prev, hadithToSave];
         localStorage.setItem('savedHadiths', JSON.stringify(updated));
         // Firestore save + activity
-        saveHadithToFirestore(user.id, hadithToSave);
-        logActivity(user.id, 'saved', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
+        saveHadithToFirestore(user.uid, hadithToSave);
+        logActivity(user.uid, 'saved', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
         toast({ title: 'Hadith Saved', description: 'Added to your collection.' });
         return updated;
       }
@@ -321,8 +321,8 @@ const CollectionExplore: React.FC = () => {
     setShareDialogOpen(true);
     // Log share activity + update Firestore
     if (user) {
-      shareHadithInFirestore(user.id, hadith.id);
-      logActivity(user.id, 'shared', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
+      shareHadithInFirestore(user.uid, hadith.id);
+      logActivity(user.uid, 'shared', { hadithId: hadith.id, text: hadith.english, book: hadith.book });
     }
   };
 

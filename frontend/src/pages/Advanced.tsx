@@ -474,15 +474,6 @@ const Advanced = () => {
                     Reference: {hadith.chapter ? hadith.chapter + ' • ' : ''}Hadith {hadith.reference.hadith}
                   </div>
                   <div className="flex justify-end gap-2 mt-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => console.log('Practice recitation')}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Mic className="mr-2 h-4 w-4" />
-                      Practice
-                    </Button>
                     <ShareDialog
                       hadith={{
                         id: hadith.id.toString(),

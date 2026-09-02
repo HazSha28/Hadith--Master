@@ -106,6 +106,71 @@ const Profile = () => {
     } else { setLoading(false); }
   }, [authProfile, currentUser]);
 
+  /* ── One-time sync: localStorage → Firestore ──────────────
+   * Runs once per session. Reads saved hadiths from localStorage
+   * and pushes any missing ones to Firestore so the profile stats work.
+   */
+  useEffect(() => {
+    if (!currentUser) return;
+    const SYNC_KEY = `ls_synced_v2_${currentUser.uid}`;
+    if (sessionStorage.getItem(SYNC_KEY)) return; // already synced this session
+    sessionStorage.setItem(SYNC_KEY, '1');
+
+    (async () => {
+      try {
+        const { setDoc, doc: fsDoc } = await import('firebase/firestore');
+
+        // Sync saved hadiths
+        const raw = localStorage.getItem('savedHadiths');
+        if (raw) {
+          const saved = JSON.parse(raw) as any[];
+          for (const h of saved) {
+            if (!h?.id) continue;
+            const englishText = typeof h.english === 'string' ? h.english : h.english?.text || '';
+            await setDoc(
+              fsDoc(db, 'userCollections', currentUser.uid, 'savedHadiths', String(h.id)),
+              {
+                ...h,
+                english: typeof h.english === 'string'
+                  ? { text: h.english, narrator: 'Unknown' }
+                  : h.english || { text: '', narrator: 'Unknown' },
+                savedAt: new Date(),
+                liked: false,
+                shared: false,
+              },
+              { merge: true }
+            );
+          }
+          console.log(`[Profile] Synced ${saved.length} saved hadiths to Firestore`);
+        }
+
+        // Sync liked hadiths as activity entries
+        const likedRaw = localStorage.getItem(`liked-hadiths-${currentUser.uid}`);
+        if (likedRaw) {
+          const likedIds = JSON.parse(likedRaw) as string[];
+          const { setDoc, doc: fsDoc } = await import('firebase/firestore');
+          for (const id of likedIds.slice(0, 100)) {
+            // Use deterministic ID so re-sync doesn't create duplicates
+            await setDoc(
+              fsDoc(db, 'userActivity', currentUser.uid, 'activities', `liked_${id}`),
+              {
+                type:       'liked',
+                hadithId:   id,
+                hadithText: '',
+                book:       '',
+                timestamp:  new Date(),
+              },
+              { merge: true }
+            );
+          }
+          console.log(`[Profile] Synced ${likedIds.length} likes to Firestore`);
+        }
+      } catch (err) {
+        console.warn('[Profile] localStorage sync failed:', err);
+      }
+    })();
+  }, [currentUser]);
+
   /* Load stats + activity — real-time listeners */
   useEffect(() => {
     if (!currentUser) return;
@@ -136,10 +201,11 @@ const Profile = () => {
     }, (err) => console.error('savedHadiths listener error:', err));
 
     // ── Listener 2: Activity log ──
+    // Use a higher limit so we get all liked activities for counting
     const actRef = query(
       collection(db, 'userActivity', currentUser.uid, 'activities'),
       orderBy('timestamp', 'desc'),
-      limit(20)
+      limit(200)
     );
     const unsubActivity = onSnapshot(actRef, (snap) => {
       const acts = snap.docs.map(d => ({
@@ -147,18 +213,34 @@ const Profile = () => {
         ...d.data(),
         timestamp: d.data().timestamp?.toDate?.() || new Date(),
       })) as any[];
-      setRecentActivity(acts);
-      // Recalculate streak + time whenever activity changes
+      setRecentActivity(acts.slice(0, 20)); // show only 20 in activity tab
+      // Recalculate all stats from activity
       const streak = calcStreak(acts);
+      // Count unique liked hadith IDs (subtract unliked)
+      const likedSet = new Set<string>();
+      acts.forEach(a => {
+        if (a.type === 'liked' && a.hadithId)   likedSet.add(a.hadithId);
+        if (a.type === 'unliked' && a.hadithId) likedSet.delete(a.hadithId);
+      });
       setUserStats(prev => prev
         ? {
             ...prev,
+            hadithsLiked:   likedSet.size,
+            commentsPosted: acts.filter(a => a.type === 'commented').length,
+            hadithsShared:  acts.filter(a => a.type === 'shared').length,
+            studyStreak:    streak,
+            totalStudyTime: acts.length * 5,
+            lastActive:     acts.length > 0 ? acts[0].timestamp : null,
+          }
+        : {
+            hadithsRead:    0,
+            hadithsLiked:   likedSet.size,
+            hadithsShared:  acts.filter(a => a.type === 'shared').length,
             commentsPosted: acts.filter(a => a.type === 'commented').length,
             studyStreak:    streak,
             totalStudyTime: acts.length * 5,
             lastActive:     acts.length > 0 ? acts[0].timestamp : null,
           }
-        : null
       );
     }, (err) => console.error('activity listener error:', err));
 
@@ -636,43 +718,6 @@ const Profile = () => {
                 </CardContent>
               </Card>
 
-              {/* Preferences */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Settings className="h-5 w-5" /> Preferences
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { icon: Bell,  label: 'Notifications', value: profile?.preferences?.notifications ? 'On' : 'Off' },
-                    { icon: Globe, label: 'Language',      value: 'English' },
-                    { icon: Lock,  label: 'Privacy',       value: 'Standard' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                      <div className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{item.label}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">{item.value}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  ))}
-
-                  <Separator className="my-2" />
-
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="h-4 w-4 mr-2" /> Sign Out
-                  </Button>
-                </CardContent>
-              </Card>
             </div>
           </TabsContent>
         </Tabs>

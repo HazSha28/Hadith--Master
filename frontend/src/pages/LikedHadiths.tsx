@@ -49,7 +49,7 @@ const LikedHadiths: React.FC = () => {
     }
 
     const loadLikedHadiths = async () => {
-      const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
+      const liked = localStorage.getItem(`liked-hadiths-${user.uid}`);
       if (!liked) {
         setLikedHadiths([]);
         setLoading(false);
@@ -80,7 +80,7 @@ const LikedHadiths: React.FC = () => {
     loadLikedHadiths();
 
     // Load saved hadiths for comparison
-    const saved = localStorage.getItem(`saved-hadiths-${user.id}`);
+    const saved = localStorage.getItem(`saved-hadiths-${user.uid}`);
     if (saved) {
       setSavedHadiths(new Set(JSON.parse(saved)));
     }
@@ -92,11 +92,11 @@ const LikedHadiths: React.FC = () => {
     setLikedHadiths(newLiked);
 
     // Update localStorage
-    const liked = localStorage.getItem(`liked-hadiths-${user.id}`);
+    const liked = localStorage.getItem(`liked-hadiths-${user.uid}`);
     if (liked) {
       const likedSet = new Set(JSON.parse(liked));
       likedSet.delete(hadithId);
-      localStorage.setItem(`liked-hadiths-${user.id}`, JSON.stringify([...likedSet]));
+      localStorage.setItem(`liked-hadiths-${user.uid}`, JSON.stringify([...likedSet]));
     }
 
     toast({
@@ -115,7 +115,7 @@ const LikedHadiths: React.FC = () => {
     }
 
     setSavedHadiths(newSaved);
-    localStorage.setItem(`saved-hadiths-${user.id}`, JSON.stringify([...newSaved]));
+    localStorage.setItem(`saved-hadiths-${user.uid}`, JSON.stringify([...newSaved]));
 
     toast({
       title: newSaved.has(hadithId) ? 'Hadith Saved' : 'Hadith Removed',

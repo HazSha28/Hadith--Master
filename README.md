@@ -1,6 +1,10 @@
 # 🕌 Hadith Master
 
+<<<<<<< HEAD
 > Explore 30,000+ authentic hadiths from the six canonical books — with AI-powered search, voice input, community chat, and a personalized learning dashboard.
+=======
+> A comprehensive digital platform for studying, searching, and engaging with authentic Islamic Hadith literature — with modern AI-powered tools.
+>>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)](https://www.typescriptlang.org)
@@ -58,7 +62,11 @@ Hadith Master makes the sayings and teachings of Prophet Muhammad ﷺ accessible
 
 ```
 ┌─────────────────────────────────────────────────────┐
+<<<<<<< HEAD
 │                    Frontend (React)                  │
+=======
+│                    Frontend (React)                 │
+>>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
 │  Vite + TypeScript + TailwindCSS + shadcn/ui        │
 │  Port: 8080  →  Proxy /api → localhost:3002         │
 └────────────────────┬────────────────────────────────┘
@@ -66,15 +74,26 @@ Hadith Master makes the sayings and teachings of Prophet Muhammad ﷺ accessible
          ┌───────────┴───────────┐
          │                       │
 ┌────────▼────────┐   ┌──────────▼──────────┐
+<<<<<<< HEAD
 │  Backend (Node) │   │  Firebase (Google)   │
 │  Express + pg   │   │  Firestore + Auth    │
 │  Port: 3002     │   │  Storage + Rules     │
+=======
+│  Backend (Node) │   │  Firebase (Google)  │
+│  Express + pg   │   │  Firestore + Auth   │
+│  Port: 3002     │   │  Storage + Rules    │
+>>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
 └────────┬────────┘   └─────────────────────┘
          │
 ┌────────▼────────┐
 │   PostgreSQL    │
+<<<<<<< HEAD
 │  30k+ hadiths  │
 │  GIN indexes   │
+=======
+│  30k+ hadiths   │
+│  GIN indexes    │
+>>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
 └─────────────────┘
 ```
 

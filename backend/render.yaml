@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: hadith-master-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node api/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "10000"
+      # Set these in the Render dashboard — do NOT commit real values:
+      - key: PGUSER
+        sync: false
+      - key: PGHOST
+        sync: false
+      - key: PGDATABASE
+        sync: false
+      - key: PGPASSWORD
+        sync: false
+      - key: PGPORT
+        value: "5432"
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false   # e.g. https://hadith-master.vercel.app
+    healthCheckPath: /health

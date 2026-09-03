@@ -40,17 +40,51 @@ const limiter = rateLimit({
 // Middleware
 app.use(compression());
 app.use(limiter);
+
+// ── CORS ──────────────────────────────────────────────────────
+// In production set ALLOWED_ORIGINS to a comma-separated list, e.g.:
+//   https://hadith-master.vercel.app,https://www.hadithmaster.com
+// During development every localhost origin is allowed automatically.
+const buildAllowedOrigins = () => {
+  const base = [
+    'http://localhost:8080',
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'http://localhost:5173',
+  ];
+  const fromEnv = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [];
+  return [...new Set([...base, ...fromEnv])];
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow any localhost origin or origins from ALLOWED_ORIGINS
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8080', 'http://localhost:3000', 'http://localhost:8081', 'http://localhost:5173'];
-    if (!origin || origin.startsWith('http://localhost:') || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin) return callback(null, true);
+
+    const allowed = buildAllowedOrigins();
+
+    // Always allow any localhost port in development
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
     }
+
+    // Allow any *.vercel.app subdomain (preview + production deployments)
+    if (/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    if (allowed.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`CORS blocked: ${origin}`);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

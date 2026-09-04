@@ -287,8 +287,12 @@ const Profile = () => {
       await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: url, updatedAt: serverTimestamp() });
       setProfile((p: any) => ({ ...p, photoURL: url }));
       toast({ title: 'Avatar updated' });
-    } catch {
-      toast({ title: 'Upload failed', variant: 'destructive' });
+    } catch (err: any) {
+      console.error('Avatar upload error:', err);
+      const msg = err?.code === 'storage/unauthorized'
+        ? 'Permission denied — check Firebase Storage rules'
+        : err?.message || 'Upload failed';
+      toast({ title: msg, variant: 'destructive' });
     } finally {
       setAvatarUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

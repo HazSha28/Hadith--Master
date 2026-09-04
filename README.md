@@ -1,6 +1,6 @@
 # 🕌 Hadith Master
 
-<<<<<<< HEAD
+
 > Explore 30,000+ authentic hadiths from the six canonical books — with AI-powered search, voice input, community chat, and a personalized learning dashboard.
 =======
 > A comprehensive digital platform for studying, searching, and engaging with authentic Islamic Hadith literature — with modern AI-powered tools.

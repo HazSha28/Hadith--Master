@@ -55,45 +55,11 @@ Hadith Master makes the sayings and teachings of Prophet Muhammad ﷺ accessible
 - Support inbox — reply to user private messages in real-time
 
 ---
-
-## 🏗️ Architecture
-
-┌─────────────────────────────────────────────────────────────┐
-│                     FRONTEND — REACT                        │
-│                                                             │
-│        Vite + TypeScript + TailwindCSS + shadcn/ui          │
-│                     Port: 8080                              │
-│                                                             │
-│              /api → Proxy to localhost:3002                 │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ API Requests
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    BACKEND — NODE.JS                        │
-│                                                             │
-│                  Express + PostgreSQL (pg)                  │
-│                       Port: 3002                            │
-└───────────────┬───────────────────────────┬─────────────────┘
-                │                           │
-                │ Database Queries          │ Firebase Services
-                ▼                           ▼
-┌──────────────────────────┐     ┌────────────────────────────┐
-│       POSTGRESQL         │     │       FIREBASE (GOOGLE)    │
-│                          │     │                            │
-│  • 30K+ Hadith Records   │     │  • Firestore               │
-│  • Full-Text Search      │     │  • Authentication          │
-│  • GIN Indexes           │     │  • Cloud Storage           │
-│  • Structured Data       │     │  • Security Rules          │
-└──────────────────────────┘     └────────────────────────────┘
-
-
 **What goes where:**
 - **PostgreSQL** — all hadith data (text, Arabic, metadata, full-text search)
 - **Firestore** — user profiles, saved hadiths, activity logs, community chat, support threads
 - **Firebase Auth** — authentication (email/password + Google OAuth)
 - **Firebase Storage** — profile picture uploads
-
 ---
 
 ## 🚀 Getting Started

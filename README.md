@@ -58,42 +58,35 @@ Hadith Master makes the sayings and teachings of Prophet Muhammad ﷺ accessible
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-<<<<<<< HEAD
-│                    Frontend (React)                  │
-=======
-│                    Frontend (React)                 │
->>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
-│  Vite + TypeScript + TailwindCSS + shadcn/ui        │
-│  Port: 8080  →  Proxy /api → localhost:3002         │
-└────────────────────┬────────────────────────────────┘
-                     │
-         ┌───────────┴───────────┐
-         │                       │
-┌────────▼────────┐   ┌──────────▼──────────┐
-<<<<<<< HEAD
-│  Backend (Node) │   │  Firebase (Google)   │
-│  Express + pg   │   │  Firestore + Auth    │
-│  Port: 3002     │   │  Storage + Rules     │
-=======
-│  Backend (Node) │   │  Firebase (Google)  │
-│  Express + pg   │   │  Firestore + Auth   │
-│  Port: 3002     │   │  Storage + Rules    │
->>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
-└────────┬────────┘   └─────────────────────┘
-         │
-┌────────▼────────┐
-│   PostgreSQL    │
-<<<<<<< HEAD
-│  30k+ hadiths  │
-│  GIN indexes   │
-=======
-│  30k+ hadiths   │
-│  GIN indexes    │
->>>>>>> f8e8519f8fa78196a7f2a39eba5ae5550993a9cd
-└─────────────────┘
-```
+┌─────────────────────────────────────────────────────────────┐
+│                     FRONTEND — REACT                        │
+│                                                             │
+│        Vite + TypeScript + TailwindCSS + shadcn/ui          │
+│                     Port: 8080                              │
+│                                                             │
+│              /api → Proxy to localhost:3002                 │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ API Requests
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    BACKEND — NODE.JS                        │
+│                                                             │
+│                  Express + PostgreSQL (pg)                  │
+│                       Port: 3002                            │
+└───────────────┬───────────────────────────┬─────────────────┘
+                │                           │
+                │ Database Queries          │ Firebase Services
+                ▼                           ▼
+┌──────────────────────────┐     ┌────────────────────────────┐
+│       POSTGRESQL         │     │       FIREBASE (GOOGLE)    │
+│                          │     │                            │
+│  • 30K+ Hadith Records   │     │  • Firestore               │
+│  • Full-Text Search      │     │  • Authentication          │
+│  • GIN Indexes           │     │  • Cloud Storage           │
+│  • Structured Data       │     │  • Security Rules          │
+└──────────────────────────┘     └────────────────────────────┘
+
 
 **What goes where:**
 - **PostgreSQL** — all hadith data (text, Arabic, metadata, full-text search)

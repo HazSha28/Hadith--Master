@@ -403,7 +403,7 @@ const CollectionExplore: React.FC = () => {
             </Button>
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6" />
-              <h1 className="text-3xl font-bold">{bookInfo.name}</h1>
+              <h1 className="text-xl sm:text-3xl font-bold">{bookInfo.name}</h1>
             </div>
           </div>
           <p className="text-primary-foreground/80 mb-2">{bookInfo.description}</p>
@@ -414,7 +414,7 @@ const CollectionExplore: React.FC = () => {
       {/* Search and Filters */}
       <div className="sticky top-0 bg-background border-b z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex flex-col lg:flex-row gap-3">
             {/* Search Bar */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -429,7 +429,7 @@ const CollectionExplore: React.FC = () => {
             {/* Filters */}
             <div className="flex gap-2">
               <Select value={authenticityFilter} onValueChange={setAuthenticityFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="flex-1 min-w-0 sm:w-40">
                   <SelectValue placeholder="Authenticity" />
                 </SelectTrigger>
                 <SelectContent>
@@ -441,7 +441,7 @@ const CollectionExplore: React.FC = () => {
               </Select>
 
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="flex-1 min-w-0 sm:w-32">
                   <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>

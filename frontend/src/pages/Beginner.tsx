@@ -256,7 +256,7 @@ const Beginner = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold text-foreground text-center mb-4">
+          <h1 className="text-2xl sm:text-4xl font-bold text-foreground text-center mb-4">
             Beginner Hadith Learning
           </h1>
           <p className="text-muted-foreground text-center mb-8 text-lg">
@@ -264,8 +264,8 @@ const Beginner = () => {
           </p>
 
           {/* Tab Navigation */}
-          <div className="mb-8">
-            <div className="flex space-x-1">
+          <div className="mb-8 overflow-x-auto -mx-4 px-4">
+            <div className="flex space-x-1 min-w-max">
               <Button
                 variant="ghost"
                 className={`rounded-none border-b-2 ${activeTab === 'search' ? 'border-primary' : 'border-transparent'}`}
@@ -662,7 +662,7 @@ const Beginner = () => {
 
           {/* Hadith Books Section */}
           <div className="mt-16">
-            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">Hadith Collections</h2>
+            <h2 className="text-xl sm:text-3xl font-bold text-foreground mb-8 text-center">Hadith Collections</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 { name: "Sahih Bukhari", desc: "The most authentic collection", hadiths: "7,563 hadiths" },

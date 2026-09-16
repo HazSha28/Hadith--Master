@@ -18,11 +18,11 @@ import { useToast } from '@/hooks/use-toast';
 import {
   doc, getDoc, updateDoc, serverTimestamp,
   collection, query, orderBy, limit,
-  onSnapshot                              // ← real-time listener
+  onSnapshot, getDocs, deleteDoc          // ← added getDocs, deleteDoc
 } from 'firebase/firestore';
 import { db, storage } from '@/firebase';
 import { updateProfile } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { isAdminEmail } from '@/config/adminConfig';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -85,6 +85,9 @@ const Profile = () => {
   const [savedHadiths, setSavedHadiths] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [allRecordings, setAllRecordings]     = useState<any[]>([]);
+  const [loadingRec, setLoadingRec]           = useState(false);
+  const [deletingRecId, setDeletingRecId]     = useState<string | null>(null);
 
   /* Load profile */
   useEffect(() => {
@@ -272,6 +275,40 @@ const Profile = () => {
     return streak;
   };
 
+  /* Load all recordings for the profile page */
+  const loadAllRecordings = async () => {
+    if (!currentUser) return;
+    setLoadingRec(true);
+    try {
+      const q = query(
+        collection(db, 'userRecordings', currentUser.uid, 'recordings'),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setAllRecordings(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error('Failed to load recordings:', err);
+    } finally {
+      setLoadingRec(false);
+    }
+  };
+
+  /* Delete a recording from profile */
+  const handleDeleteRecording = async (rec: any) => {
+    if (!currentUser) return;
+    setDeletingRecId(rec.id);
+    try {
+      await deleteObject(storageRef(storage, rec.storagePath));
+      await deleteDoc(doc(db, 'userRecordings', currentUser.uid, 'recordings', rec.id));
+      setAllRecordings(prev => prev.filter(r => r.id !== rec.id));
+      toast({ title: 'Recording deleted' });
+    } catch {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    } finally {
+      setDeletingRecId(null);
+    }
+  };
+
   /* Avatar upload */
   const handleAvatarClick = () => fileInputRef.current?.click();
 
@@ -280,9 +317,9 @@ const Profile = () => {
     if (!file || !currentUser) return;
     setAvatarUploading(true);
     try {
-      const storageRef = ref(storage, `avatars/${currentUser.uid}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const avatarRef = storageRef(storage, `avatars/${currentUser.uid}`);
+      await uploadBytes(avatarRef, file);
+      const url = await getDownloadURL(avatarRef);
       await updateProfile(currentUser, { photoURL: url });
       await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: url, updatedAt: serverTimestamp() });
       setProfile((p: any) => ({ ...p, photoURL: url }));
@@ -366,7 +403,7 @@ const Profile = () => {
         </div>
 
         {/* Top-right action buttons */}
-        <div className="absolute right-6 bottom-4 flex gap-2">
+        <div className="absolute right-3 bottom-3 flex flex-wrap gap-1.5 max-w-[60%] justify-end">
           {isUserAdmin && (
             <>
               <Link to="/admin/profile">
@@ -429,10 +466,10 @@ const Profile = () => {
       </div>
 
       {/* ── Profile Info ─────────────────────────────────── */}
-      <div className="container mx-auto px-6 pt-20 pb-4">
+      <div className="container mx-auto px-4 pt-20 pb-4">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">{displayName}</h1>
+            <h1 className="text-xl sm:text-3xl font-bold">{displayName}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="text-muted-foreground text-sm">{profile?.email}</span>
               {/* Role badge */}
@@ -480,14 +517,18 @@ const Profile = () => {
       <Separator />
 
       {/* ── Main Content ─────────────────────────────────── */}
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
-            <TabsTrigger value="saved" className="rounded-lg">Saved Hadiths</TabsTrigger>
-            <TabsTrigger value="activity" className="rounded-lg">Activity</TabsTrigger>
-            <TabsTrigger value="settings" className="rounded-lg">Settings</TabsTrigger>
-          </TabsList>
+          {/* Scrollable tabs on mobile */}
+          <div className="overflow-x-auto -mx-4 px-4">
+            <TabsList className="bg-muted/50 p-1 rounded-xl inline-flex w-max min-w-full sm:w-full">
+              <TabsTrigger value="overview" className="rounded-lg text-xs sm:text-sm flex-1">Overview</TabsTrigger>
+              <TabsTrigger value="saved" className="rounded-lg text-xs sm:text-sm flex-1">Saved</TabsTrigger>
+              <TabsTrigger value="activity" className="rounded-lg text-xs sm:text-sm flex-1">Activity</TabsTrigger>
+              <TabsTrigger value="recordings" className="rounded-lg text-xs sm:text-sm flex-1" onClick={loadAllRecordings}>Recordings</TabsTrigger>
+              <TabsTrigger value="settings" className="rounded-lg text-xs sm:text-sm flex-1">Settings</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* ── Overview Tab ─────────────────────────────── */}
           <TabsContent value="overview" className="space-y-6">
@@ -685,6 +726,69 @@ const Profile = () => {
                             {a.timestamp instanceof Date ? a.timestamp.toLocaleString() : ''}
                           </p>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Recordings Tab ───────────────────────────── */}
+          <TabsContent value="recordings">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Mic className="h-5 w-5 text-emerald-500" />
+                  My Recitation Recordings
+                  <Badge variant="secondary" className="ml-auto">{allRecordings.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingRec ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : allRecordings.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground">
+                    <Mic className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No recordings saved yet</p>
+                    <p className="text-sm mt-1">Go to Practice Recitation and save your recordings</p>
+                    <Link to="/advanced">
+                      <Button size="sm" className="mt-4">Go to Practice</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {allRecordings.map((rec: any) => (
+                      <div key={rec.id} className="p-4 rounded-xl bg-muted/30 border hover:border-primary/30 transition-colors">
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {rec.book || 'Unknown Book'} — Hadith #{rec.hadithNumber || rec.hadithId}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {rec.createdAt?.toDate
+                                ? rec.createdAt.toDate().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                : 'Unknown date'
+                              }
+                              {rec.durationSecs ? ` · ${Math.floor(rec.durationSecs / 60)}:${String(rec.durationSecs % 60).padStart(2, '0')}` : ''}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteRecording(rec)}
+                            disabled={deletingRecId === rec.id}
+                            className="text-destructive hover:text-destructive/80 flex-shrink-0"
+                          >
+                            {deletingRecId === rec.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <LogOut className="h-4 w-4" />
+                            }
+                          </Button>
+                        </div>
+                        <audio src={rec.url} controls className="w-full h-9" />
                       </div>
                     ))}
                   </div>

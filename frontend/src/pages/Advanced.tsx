@@ -44,7 +44,7 @@ import { UserOnboarding } from "@/components/UserOnboarding";
 import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
-import { testApiConnection, testAiApiConnection } from "@/lib/hadithApiService";
+import { testApiConnection, testAiApiConnection, getRandomHadiths } from "@/lib/hadithApiService";
 
 type Hadith = {
   id: number;
@@ -79,6 +79,10 @@ const Advanced = () => {
   const [activeTab, setActiveTab] = useState<'search' | 'recite'>('search');
   const [savedHadiths, setSavedHadiths] = useState<Hadith[]>([]);
   const [isAiSearch, setIsAiSearch] = useState(true);
+
+  // Separate state for practice recitation hadith
+  const [practiceHadith, setPracticeHadith] = useState<Hadith | null>(null);
+  const [practiceLoading, setPracticeLoading] = useState(false);
 
   // Hooks
   const navigate = useNavigate();
@@ -184,6 +188,28 @@ const Advanced = () => {
       loadPracticeHadith();
     }
   }, [activeTab, hadith]);
+
+  // Load a fresh random hadith for the practice recitation target
+  const loadNextPracticeHadith = async () => {
+    setPracticeLoading(true);
+    try {
+      const results = await getRandomHadiths(1);
+      if (results && results.length > 0) {
+        setPracticeHadith(results[0] as any);
+      }
+    } catch (err) {
+      console.error('Failed to load practice hadith:', err);
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
+
+  // Load practice hadith when switching to recite tab
+  useEffect(() => {
+    if (activeTab === "recite" && !practiceHadith) {
+      loadNextPracticeHadith();
+    }
+  }, [activeTab]);
 
   const handleSearch = () => {
     console.log('Advanced search triggered with text:', searchText);
@@ -394,23 +420,57 @@ const Advanced = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <VoiceRecorder hadith={hadith || undefined} />
+                    <VoiceRecorder hadith={practiceHadith || undefined} />
                   </CardContent>
                 </Card>
 
-                {hadith && (
-                  <Card className="bg-card shadow-lg">
-                    <CardHeader className="pb-3">
+                {/* Target Hadith with Next button */}
+                <Card className="bg-card shadow-lg">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">Target Hadith</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-right text-xl leading-loose font-arabic mb-4">
-                        {hadith.arabic}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadNextPracticeHadith}
+                        disabled={practiceLoading}
+                      >
+                        {practiceLoading
+                          ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Loading...</>
+                          : 'Next Hadith →'
+                        }
+                      </Button>
+                    </div>
+                    {practiceHadith && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {practiceHadith.book} · Hadith #{practiceHadith.reference?.hadith}
+                        {practiceHadith.english?.narrator && ` · Narrated by ${practiceHadith.english.narrator}`}
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    {practiceLoading ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
-                      <p className="text-sm text-foreground">{hadith.english.text}</p>
-                    </CardContent>
-                  </Card>
-                )}
+                    ) : practiceHadith ? (
+                      <>
+                        {practiceHadith.arabic && (
+                          <div className="text-right text-xl leading-loose font-arabic mb-4 p-3 bg-muted/30 rounded-lg">
+                            {practiceHadith.arabic}
+                          </div>
+                        )}
+                        <p className="text-sm text-foreground leading-relaxed">
+                          {practiceHadith.english?.text || practiceHadith.english as any}
+                        </p>
+                      </>
+                    ) : (
+                      <div className="text-center text-muted-foreground py-6">
+                        <Button onClick={loadNextPracticeHadith} variant="outline">Load Hadith</Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </div>
           )}

@@ -12,7 +12,7 @@ import {
   Clock, MapPin, Shield, Edit3, Save, X, TrendingUp,
   Activity, Bookmark, Share2, MessageSquare, Star, Trophy,
   Sparkles, Crown, Camera, ChevronRight, Flame, Target,
-  BarChart2, BookMarked, Hash, Bell, Lock, LogOut, Loader2, Globe
+  BarChart2, BookMarked, Hash, Bell, Lock, LogOut, Loader2, Globe, Mic, Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -784,7 +784,7 @@ const Profile = () => {
                           >
                             {deletingRecId === rec.id
                               ? <Loader2 className="h-4 w-4 animate-spin" />
-                              : <LogOut className="h-4 w-4" />
+                              : <Trash2 className="h-4 w-4" />
                             }
                           </Button>
                         </div>

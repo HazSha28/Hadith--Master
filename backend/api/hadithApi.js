@@ -28,6 +28,18 @@ const pool = new Pool({
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: parseInt(process.env.PGPORT || '5432'),
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+// Test DB connection on startup
+pool.query('SELECT 1').then(() => {
+  console.log(`✅ PostgreSQL connected — host: ${process.env.PGHOST}, db: ${process.env.PGDATABASE}`);
+}).catch(err => {
+  console.error(`❌ PostgreSQL connection FAILED:`, err.message);
+  console.error(`   PGHOST=${process.env.PGHOST}`);
+  console.error(`   PGUSER=${process.env.PGUSER}`);
+  console.error(`   PGDATABASE=${process.env.PGDATABASE}`);
+  console.error(`   PGPORT=${process.env.PGPORT}`);
 });
 
 // Helper function to format hadith data for frontend
